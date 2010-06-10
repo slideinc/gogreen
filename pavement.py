@@ -9,7 +9,7 @@ from paver.setuputils import setup
 
 setup(
     name="gogreen",
-    description="",
+    description="Coroutine utilities for non-blocking I/O with greenlet",
     version="1.0",
     license="bsd",
     packages=["gogreen"],
@@ -19,7 +19,7 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
         "Operating System :: Unix",
-        "Programming Language :: C",
+        "Programming Language :: Python",
         "Topic :: System :: Networking",
     ]
 )
