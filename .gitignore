@@ -1,0 +1,9 @@
+.*.swp
+*.pyc
+*.pyo
+gogreen.egg-info/*
+MANIFEST.in
+build/*
+docs/build/*
+dist/*
+html/*
