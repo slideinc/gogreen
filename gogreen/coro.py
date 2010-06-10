@@ -53,18 +53,19 @@ import socket
 # so a patched version is in this source tree.)
 #
 try:
-	from mod import _ssl
+	import _green_ssl as __real_ssl__
 except:
 	__real_ssl__ = None
-else:
-	__real_ssl__ = _ssl
 
 try:
-	from mod import _epoll
+	import _epoll
 except:
 	_epoll = None
 
-from mod import itimer
+try:
+    import itimer
+except:
+    itimer = None
 
 # sentinel value used by wait_for_read() and wait_for_write()
 USE_DEFAULT_TIMEOUT = -1
@@ -1320,6 +1321,8 @@ def new_socket(family, type, proto = 0):
 	return coroutine_socket(sock = __real_socket__(family, type, proto))
 
 def new_ssl(sock, keyfile=None, certfile=None):
+    if not __real_ssl__:
+        raise RuntimeError("the green_ssl extension is required")
 	return coroutine_ssl(
 		sock, __real_ssl__.ssl(sock._sock.socket, keyfile, certfile))
 
@@ -1343,7 +1346,8 @@ def socket_emulate():
 	socket.setdefaulttimeout = setdefaulttimeout
 	socket.getdefaulttimeout = getdefaulttimeout
 	socket.ssl = new_ssl
-	socket.sslerror = __real_ssl__.sslerror
+    if __real_ssl__:
+        socket.sslerror = __real_ssl__.sslerror
 
 def socket_reverse():
 	for module, attr in _emulate_list:
@@ -1538,6 +1542,9 @@ def preemptive_signal_handler(signum, frame):
 def preemptive_enable(frequency = 50):
 	global the_preemptive_rate
 
+    if not itimer:
+        raise RuntimeError("the 'itimer' extension is required for preempting")
+
 	if the_preemptive_rate is None:
 		signal.signal(signal.SIGPROF, preemptive_signal_handler)
 
@@ -1550,6 +1557,10 @@ def preemptive_enable(frequency = 50):
 
 def preemptive_disable():
 	global the_preemptive_rate
+
+    if not itimer:
+        raise RuntimeError("the 'itimer' extension is required for preempting")
+
 	the_preemptive_rate = None
 
 	itimer.setitimer(itimer.ITIMER_PROF, 0, 0)
