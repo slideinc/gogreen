@@ -53,7 +53,7 @@ import socket
 # so a patched version is in this source tree.)
 #
 try:
-	import _green_ssl as __real_ssl__
+	import green_ssl as __real_ssl__
 except:
 	__real_ssl__ = None
 
