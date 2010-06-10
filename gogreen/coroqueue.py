@@ -41,13 +41,11 @@ import coro
 import time
 import bisect
 import exceptions
-import MySQLdb
 import operator
 import copy
 import smtplib
 import socket
 
-from db import shrub
 import pyinfo
 
 DEFAULT_PRIORITY = 0x01
@@ -668,99 +666,6 @@ class SafeQueue(Queue):
 			raise QueueDeadlock(obj, self._item_save[obj])
 
 		return super(SafeQueue, self).get(*args, **kwargs)
-
-
-class SQLdbQueue(SafeQueue):
-	def __init__(
-		self, priorities = [DEFAULT_PRIORITY],
-		size = 0, optional = {}, timeout = None, trace = False, **kw):
-
-		super(SQLdbQueue, self).__init__(
-			shrub.Connection, (), optional,
-			size = size, prios = priorities, timeout = timeout, **kw)
-
-		self._trace = trace
-		self._tdata = {}
-		self._cdata = {}
-
-	def _dealloc(self, o):
-		super(SQLdbQueue, self)._dealloc(o)
-
-		o.close()
-
-	def _collect(self, dbc):
-		trace = dbc.execution_trace(raw = True)
-		count = dbc.execution_count()
-
-		self._tdata = merge(self._tdata, trace)
-		self._cdata = merge(self._cdata, count)
-
-	def get(self, prio = None, poll = False, id = None):
-		dbc = super(type(self), self).get(prio = prio, poll = poll)
-		if dbc is not None:
-			dbc.query_trace(self._trace)
-
-		return dbc
-
-	def put(self, dbc, commit = False):
-		#
-		# harvest trace statistics from the DB connection, ignore errors
-		# since it is not critical to correct operation
-		#
-		try:
-			self._collect(dbc)
-		except:
-			pass
-		#
-		# Commit or Rollback the DB connection so it is not left in a
-		# used state for the next consumer
-		#
-		try:
-			try:
-				if commit:
-					dbc.commit()
-				else:
-					dbc.rollback()
-			except MySQLdb.Error, error:
-				#
-				# DB connection is in an odd state, close it down completely,
-				# next usage will result in it being recreated.
-				#
-				dbc.close()
-				#
-				# when we expect a commit on put, we have to raise on an error
-				#
-				if commit: raise error
-		finally:
-			#
-			# ensure DB connection is placed back in the queue.
-			#
-			result = super(type(self), self).put(dbc)
-
-		return result
-
-	def wrapper(self):
-		'''
-		Return a wrapper which behaves as a DB cursor. The resulting
-		cursor gets/puts a DB connection for each statement that it
-		executes.
-		'''
-		return shrub.PoolCursor(self)
-
-	def trace_enable(self):
-		self._trace = True
-
-	def trace_disable(self):
-		self._trace = False
-
-	def trace_clear(self):
-		self._tdata = {}
-
-	def execution_trace(self):
-		return self._tdata
-
-	def execution_count(self):
-		return self._cdata
 
 class ThreadQueue(Queue):
 	def __init__(self, thread, args, size = 0,priorities = [DEFAULT_PRIORITY]):
