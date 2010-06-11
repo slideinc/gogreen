@@ -32,8 +32,17 @@
 """Ultra mini lightweight framework
 """
 
-import os, re, types, urllib, cgi, cStringIO, sys, tempfile, Cookie, amf, amfast
+import os, re, types, urllib, cgi, cStringIO, sys, tempfile, Cookie
 import exceptions
+
+try:
+    import amf
+except:
+    amf = None
+try:
+    import amfast
+except:
+    amfast = None
 
 class LocationDeprecationWarning(DeprecationWarning):
 	pass
@@ -1130,7 +1139,8 @@ class Resource(object):
 		headers - request header dicttionary
 		environ - request environment dictionary
 		'''
-		if headers.getheader('Content-Type') == 'application/x-amf':
+		if headers.getheader('Content-Type') == 'application/x-amf' \
+                and amf and amfast:
 			return AMFFieldStorage(data, headers, environ=environ, 
 				class_mapper=self.amf_class_mapper())
 		return cgi.FieldStorage(
