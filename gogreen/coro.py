@@ -698,7 +698,6 @@ class Thread(object):
 	_thread_count = 0
 
 	def __init__(self, *args, **kwargs):
-		super(Thread, self).__init__(*args, **kwargs)
 		self._thread_id = Thread._thread_count = Thread._thread_count + 1
 
 		if not kwargs.has_key('name'):
