@@ -86,7 +86,10 @@ from coromysqlerr import *
 #
 # performance improvements used by the fast connection
 #
-from mod import mysqlfuncs
+try:
+	import mysqlfuncs
+except:
+	mysqlfuncs = None
 
 def log(msg):
 	sys.stderr.write(msg + '\n')
@@ -335,7 +338,7 @@ class connection(object):
 		#
 		# check switch for C implementation.
 		#
-		if kwargs.get('fast', False):
+		if kwargs.get('fast', False) and mysqlfuncs:
 			self.read_packet = self._fast_read_packet
 			self.cmd_query   = self._fast_cmd_query
 

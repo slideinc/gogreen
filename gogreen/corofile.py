@@ -38,7 +38,7 @@ for handling standard io.
 Written by Donovan Preston.
 """
 
-from gogreen import coro
+import coro
 
 import os
 import sys

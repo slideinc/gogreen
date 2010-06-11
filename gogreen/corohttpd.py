@@ -91,8 +91,8 @@ import Cookie
 import zlib
 import struct
 
-from gogreen import backdoor
-from gogreen import statistics
+import backdoor
+import statistics
 
 coro.socket_emulate()
 

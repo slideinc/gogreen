@@ -35,9 +35,9 @@
 Queue with worker threads to service entries.
 """
 
-from gogreen import coro
-from gogreen import coroqueue
-from gogreen import statistics
+import coro
+import coroqueue
+import statistics
 
 import exceptions
 import time

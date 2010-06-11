@@ -1,5 +1,4 @@
-#!/usr/local/bin/python
-
+#!/usr/bin/env python
 # -*- Mode: Python; tab-width: 4 -*-
 
 # Copyright (c) 2005-2010 Slide, Inc.
@@ -53,8 +52,6 @@ import pickle
 import signal
 import weakref
 import signal
-
-from mod import prctl
 
 STAUS_OPENED = 1
 STAUS_CLOSED = 0
@@ -501,6 +498,8 @@ def nowait():
 
 	
 if __name__ == '__main__':
+	import prctl
+
 	prctl.prctl(prctl.PDEATHSIG, signal.SIGTERM)
 
 	handler = FileObjectHandler(sys.stdin, sys.stdout)

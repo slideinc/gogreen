@@ -39,8 +39,8 @@ import os
 import struct
 import socket
 
-from gogreen import coro
-from mod     import sendmsg
+import coro
+import sendmsg
 
 
 def sendsocket(control, identifier, sock):
