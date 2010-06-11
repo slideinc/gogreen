@@ -1558,7 +1558,7 @@ def preemptive_disable():
 	global the_preemptive_rate
 
     if not itimer:
-        raise RuntimeError("the 'itimer' extension is required for preempting")
+        return
 
 	the_preemptive_rate = None
 
