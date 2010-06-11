@@ -1,4 +1,35 @@
+#!/usr/bin/env python
 # -*- Mode: Python; tab-width: 4 -*-
+
+# Copyright (c) 2005-2010 Slide, Inc.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above
+#       copyright notice, this list of conditions and the following
+#       disclaimer in the documentation and/or other materials provided
+#       with the distribution.
+#     * Neither the name of the author nor the names of other
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 """purepydns.py
 
 Pure Python DNS resolution routines, and a wrapper method that swaps
@@ -25,10 +56,12 @@ import dns.rdatatype
 import dns.resolver
 import dns.reversename
 
-from configs.config import config
-from gogreen import coro
+import coro
+import cache
 
-from util import cache
+DNS_QUERY_TIMEOUT = 10.0
+DNS_CACHE_MAXSIZE = 512
+
 #
 # Resolver instance used to perfrom DNS lookups.
 #
@@ -42,7 +75,7 @@ class ResolverProxy(object):
 		self._resolver = None
 		self._filename = kwargs.get('filename', '/etc/resolv.conf')
 		self._hosts = {}
-		if not config.isLive:
+		if kwargs.pop('dev', False):
 			self._load_etc_hosts()
 
 	def _load_etc_hosts(self):
@@ -80,7 +113,7 @@ class ResolverProxy(object):
 # cache
 #
 resolver  = ResolverProxy()
-responses = cache.LRU(size = config.DNS_CACHE_MAXSIZE)
+responses = cache.LRU(size = DNS_CACHE_MAXSIZE)
 
 def resolve(name):
 	error = None
@@ -274,7 +307,7 @@ def _net_write(sock, data, expiration):
 				raise dns.exception.Timeout
 
 def udp(
-	q, where, timeout=config.DNS_QUERY_TIMEOUT, port=53, af=None, source=None,
+	q, where, timeout=DNS_QUERY_TIMEOUT, port=53, af=None, source=None,
 	source_port=0, ignore_unexpected=False):
 	"""coro friendly replacement for dns.query.udp
 	Return the response obtained after sending a query via UDP.
@@ -349,7 +382,7 @@ def udp(
 		raise dns.query.BadResponse()
 	return r
 
-def tcp(q, where, timeout=config.DNS_QUERY_TIMEOUT, port=53,
+def tcp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
 	af=None, source=None, source_port=0):
 	"""coro friendly replacement for dns.query.tcp
 	Return the response obtained after sending a query via TCP.
@@ -433,7 +466,7 @@ def emulate():
 
 def reset():
 	resolver.clear()
-	responses.reset(size = config.DNS_CACHE_MAXSIZE)
+	responses.reset(size = DNS_CACHE_MAXSIZE)
 
 def main(argv=None):
 	if argv is None: argv = sys.argv
