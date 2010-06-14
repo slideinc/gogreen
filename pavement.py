@@ -12,6 +12,8 @@ setup(
     description="Coroutine utilities for non-blocking I/O with greenlet",
     version="1.0",
     license="bsd",
+    author="Libor Michalek",
+    author_email="libor@pobox.com",
     packages=["gogreen"],
     classifiers = [
         "Development Status :: 5 - Production/Stable",
