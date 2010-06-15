@@ -30,7 +30,6 @@ MANIFEST = (
     "LICENSE",
     "setup.py",
     "paver-minilib.zip",
-    "itimermodule.c",
 )
 
 @task
@@ -44,7 +43,7 @@ def sdist():
 
 @task
 def clean():
-    for p in map(path, ('itimer.egg-info', 'dist', 'build', 'MANIFEST.in')):
+    for p in map(path, ('gogreen.egg-info', 'dist', 'build', 'MANIFEST.in')):
         if p.exists():
             if p.isdir():
                 p.rmtree()
