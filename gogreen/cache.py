@@ -39,73 +39,73 @@ from util import dqueue
 DEFAULT_CACHE_SIZE = 1024
 
 class CacheObject(dqueue.QueueObject):
-	__slots__ = ['id', 'value']
+    __slots__ = ['id', 'value']
 
-	def __init__(self, *args, **kwargs):
-		super(CacheObject, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(CacheObject, self).__init__(*args, **kwargs)
 
-		self.id    = args[0]
-		self.value = kwargs.get('value', None)
+        self.id    = args[0]
+        self.value = kwargs.get('value', None)
 
-	def __repr__(self):
-		return '<CacheObject %r: %r>' % (self.id, self.value)
+    def __repr__(self):
+        return '<CacheObject %r: %r>' % (self.id, self.value)
 
 
 class LRU(object):
-	def __init__(self, *args, **kwargs):
-		self._size = kwargs.get('size', DEFAULT_CACHE_SIZE)
-		self._ordr = dqueue.ObjectQueue()
-		self._objs = {}
+    def __init__(self, *args, **kwargs):
+        self._size = kwargs.get('size', DEFAULT_CACHE_SIZE)
+        self._ordr = dqueue.ObjectQueue()
+        self._objs = {}
 
-	def __len__(self):
-		return len(self._objs)
+    def __len__(self):
+        return len(self._objs)
 
-	def _balance(self):
-		if len(self._objs) > self._size:
-			obj = self._ordr.get_tail()
-			del(self._objs[obj.id])
+    def _balance(self):
+        if len(self._objs) > self._size:
+            obj = self._ordr.get_tail()
+            del(self._objs[obj.id])
 
-	def _lookup(self, id):
-		obj = self._objs.get(id, None)
-		if obj is not None:
-			self._ordr.remove(obj)
-			self._ordr.put_head(obj)
+    def _lookup(self, id):
+        obj = self._objs.get(id, None)
+        if obj is not None:
+            self._ordr.remove(obj)
+            self._ordr.put_head(obj)
 
-		return obj
+        return obj
 
-	def _insert(self, obj):
-		self._objs[obj.id] = obj
-		self._ordr.put_head(obj)
+    def _insert(self, obj):
+        self._objs[obj.id] = obj
+        self._ordr.put_head(obj)
 
-		self._balance()
+        self._balance()
 
-	def lookup(self, id):
-		obj = self._lookup(id)
-		if obj is None:
-			return None
-		else:
-			return obj.value
+    def lookup(self, id):
+        obj = self._lookup(id)
+        if obj is None:
+            return None
+        else:
+            return obj.value
 
-	def insert(self, id, value):
-		obj = self._lookup(id)
-		if obj is None:
-			obj = CacheObject(id)
-			self._insert(obj)
+    def insert(self, id, value):
+        obj = self._lookup(id)
+        if obj is None:
+            obj = CacheObject(id)
+            self._insert(obj)
 
-		obj.value = value
+        obj.value = value
 
-	def reset(self, size = None):
-		if size is not None:
-			self._size = size
+    def reset(self, size = None):
+        if size is not None:
+            self._size = size
 
-		self._ordr.clear()
-		self._objs = {}
+        self._ordr.clear()
+        self._objs = {}
 
-	def head(self):
-		return self._ordr.look_head()
+    def head(self):
+        return self._ordr.look_head()
 
-	def tail(self):
-		return self._ordr.look_tail()
+    def tail(self):
+        return self._ordr.look_tail()
 #
 # end...
 

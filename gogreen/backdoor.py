@@ -48,189 +48,189 @@ import traceback
 #  dynamic-wind facility]
 
 class BackDoorClient(coro.Thread):
-	def init(self):
-		self.address = None
-		self.socket  = None
-		self.buffer  = ''
-		self.lines   = []
-		self.exit    = False
-		self.multilines = []
-		self.line_separator = '\r\n'
-		#
-		# allow the user to change the prompts:
-		#
-		if not sys.__dict__.has_key('ps1'):
-			sys.ps1 = '>>> '
-		if not sys.__dict__.has_key('ps2'):
-			sys.ps2 = '... '
+    def init(self):
+        self.address = None
+        self.socket  = None
+        self.buffer  = ''
+        self.lines   = []
+        self.exit    = False
+        self.multilines = []
+        self.line_separator = '\r\n'
+        #
+        # allow the user to change the prompts:
+        #
+        if not sys.__dict__.has_key('ps1'):
+            sys.ps1 = '>>> '
+        if not sys.__dict__.has_key('ps2'):
+            sys.ps2 = '... '
 
-	def send (self, data):
-		olb = lb = len(data)
-		while lb:
-			ns = self.socket.send (data)
-			lb = lb - ns
-		return olb
-		
-	def prompt (self):
-		if self.multilines:
-			self.send (sys.ps2)
-		else:
-			self.send (sys.ps1)
+    def send (self, data):
+        olb = lb = len(data)
+        while lb:
+            ns = self.socket.send (data)
+            lb = lb - ns
+        return olb
 
-	def read_line (self):
-		if self.lines:
-			l = self.lines[0]
-			self.lines = self.lines[1:]
-			return l
-		else:
-			while not self.lines:
-				block = self.socket.recv (8192)
-				if not block:
-					return None
-				elif block == '\004':
-					self.socket.close()
-					return None
-				else:
-					self.buffer = self.buffer + block
-					lines = string.split (self.buffer, self.line_separator)
-					for l in lines[:-1]:
-						self.lines.append (l)
-					self.buffer = lines[-1]
-			return self.read_line()
-		
-	def run(self, conn, addr):
-		self.socket  = conn
-		self.address = addr
+    def prompt (self):
+        if self.multilines:
+            self.send (sys.ps2)
+        else:
+            self.send (sys.ps1)
 
-		# a call to socket.setdefaulttimeout will mean that this backdoor
-		# has a timeout associated with it. to counteract this set the
-		# socket timeout to None here.
-		self.socket.settimeout(None)
-		
-		self.info('Incoming backdoor connection from %r' % (self.address,))
-		#
-		# print header for user
-		#
-		self.send ('Python ' + sys.version + self.line_separator)
-		self.send (sys.copyright + self.line_separator)
-		#
-		# this does the equivalent of 'from __main__ import *'
-		#
-		env = sys.modules['__main__'].__dict__.copy()
-		#
-		# wait for imput and process
-		#
-		while not self.exit:
-			self.prompt()
-			try:
-				line = self.read_line()
-			except coro.CoroutineSocketWake:
-				continue
-			
-			if line is None:
-				break
-			elif self.multilines:
-				self.multilines.append(line)
-				if line == '':
-					code = string.join(self.multilines, '\n')
-					self.parse(code, env)
+    def read_line (self):
+        if self.lines:
+            l = self.lines[0]
+            self.lines = self.lines[1:]
+            return l
+        else:
+            while not self.lines:
+                block = self.socket.recv (8192)
+                if not block:
+                    return None
+                elif block == '\004':
+                    self.socket.close()
+                    return None
+                else:
+                    self.buffer = self.buffer + block
+                    lines = string.split (self.buffer, self.line_separator)
+                    for l in lines[:-1]:
+                        self.lines.append (l)
+                    self.buffer = lines[-1]
+            return self.read_line()
+
+    def run(self, conn, addr):
+        self.socket  = conn
+        self.address = addr
+
+        # a call to socket.setdefaulttimeout will mean that this backdoor
+        # has a timeout associated with it. to counteract this set the
+        # socket timeout to None here.
+        self.socket.settimeout(None)
+
+        self.info('Incoming backdoor connection from %r' % (self.address,))
+        #
+        # print header for user
+        #
+        self.send ('Python ' + sys.version + self.line_separator)
+        self.send (sys.copyright + self.line_separator)
+        #
+        # this does the equivalent of 'from __main__ import *'
+        #
+        env = sys.modules['__main__'].__dict__.copy()
+        #
+        # wait for imput and process
+        #
+        while not self.exit:
+            self.prompt()
+            try:
+                line = self.read_line()
+            except coro.CoroutineSocketWake:
+                continue
+
+            if line is None:
+                break
+            elif self.multilines:
+                self.multilines.append(line)
+                if line == '':
+                    code = string.join(self.multilines, '\n')
+                    self.parse(code, env)
                     # we do this after the parsing so parse() knows not to do
-					# a second round of multiline input if it really is an
-					# unexpected EOF
-					self.multilines = []
-			else:
-				self.parse(line, env)
+                    # a second round of multiline input if it really is an
+                    # unexpected EOF
+                    self.multilines = []
+            else:
+                self.parse(line, env)
 
-		self.info('Backdoor connection closing')
+        self.info('Backdoor connection closing')
 
-		self.socket.close()
-		self.socket = None
-		return None
+        self.socket.close()
+        self.socket = None
+        return None
 
-	def parse(self, line, env):
-		save = sys.stdout, sys.stderr
-		output = StringIO.StringIO()
-		try:
-			try:
-				sys.stdout = sys.stderr = output
-				co = compile (line, repr(self), 'eval')
-				result = eval (co, env)
-				if result is not None:
-					print repr(result)
-					env['_'] = result
-			except SyntaxError:
-				try:
-					co = compile (line, repr(self), 'exec')
-					exec co in env
-				except SyntaxError, msg:
-					# this is a hack, but it is a righteous hack:
-					if not self.multilines and str(msg) == 'unexpected EOF while parsing':
-						self.multilines.append(line)
-					else:
-						traceback.print_exc()
-				except:
-					traceback.print_exc()
-			except:
-				traceback.print_exc()
-		finally:
-			sys.stdout, sys.stderr = save
-			self.send (output.getvalue())
-			del output
+    def parse(self, line, env):
+        save = sys.stdout, sys.stderr
+        output = StringIO.StringIO()
+        try:
+            try:
+                sys.stdout = sys.stderr = output
+                co = compile (line, repr(self), 'eval')
+                result = eval (co, env)
+                if result is not None:
+                    print repr(result)
+                    env['_'] = result
+            except SyntaxError:
+                try:
+                    co = compile (line, repr(self), 'exec')
+                    exec co in env
+                except SyntaxError, msg:
+                    # this is a hack, but it is a righteous hack:
+                    if not self.multilines and str(msg) == 'unexpected EOF while parsing':
+                        self.multilines.append(line)
+                    else:
+                        traceback.print_exc()
+                except:
+                    traceback.print_exc()
+            except:
+                traceback.print_exc()
+        finally:
+            sys.stdout, sys.stderr = save
+            self.send (output.getvalue())
+            del output
 
-	def shutdown(self):
-		if not self.exit:
-			self.exit = True
-			self.socket.wake()
+    def shutdown(self):
+        if not self.exit:
+            self.exit = True
+            self.socket.wake()
 
 
 class BackDoorServer(coro.Thread):
-	def init(self):
-		self._exit = False
-		self._s    = None
+    def init(self):
+        self._exit = False
+        self._s    = None
 
-	def run(self, port=8023, ip=''):
-		self._s = coro.make_socket(socket.AF_INET, socket.SOCK_STREAM)
-		self._s.set_reuse_addr()
-		self._s.bind((ip, port))
-		self._s.listen(1024)
+    def run(self, port=8023, ip=''):
+        self._s = coro.make_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._s.set_reuse_addr()
+        self._s.bind((ip, port))
+        self._s.listen(1024)
 
-		port = self._s.getsockname()[1]
-		self.info('Backdoor listening on port %d' % (port,))
-		
-		while not self._exit:
-			try:
-				conn, addr = self._s.accept()
-			except coro.CoroutineSocketWake:
-				continue
+        port = self._s.getsockname()[1]
+        self.info('Backdoor listening on port %d' % (port,))
 
-			client = BackDoorClient(args = (conn, addr))
-			client.start()
+        while not self._exit:
+            try:
+                conn, addr = self._s.accept()
+            except coro.CoroutineSocketWake:
+                continue
 
-		self.info('Backdoor exiting (children: %d)' % self.child_count())
+            client = BackDoorClient(args = (conn, addr))
+            client.start()
 
-		self._s.close()
-		self._s = None
+        self.info('Backdoor exiting (children: %d)' % self.child_count())
 
-		for child in self.child_list():
-			child.shutdown()
+        self._s.close()
+        self._s = None
 
-		self.child_wait()
-		return None
+        for child in self.child_list():
+            child.shutdown()
 
-	def shutdown(self):
-		if self._exit:
-			return None
+        self.child_wait()
+        return None
 
-		self._exit = True
+    def shutdown(self):
+        if self._exit:
+            return None
 
-		if self._s is not None:
-			self._s.wake()
+        self._exit = True
+
+        if self._s is not None:
+            self._s.wake()
 #
 # extremely minimal test server
 #
 if __name__ == '__main__':
-	server = BackDoorServer()
-	server.start()
-	coro.event_loop (30.0)
+    server = BackDoorServer()
+    server.start()
+    coro.event_loop (30.0)
 #
 # end...

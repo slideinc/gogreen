@@ -39,96 +39,96 @@ import signal
 ECHO_PORT = 5580
 
 class EchoClient(coro.Thread):
-	def __init__(self, *args, **kwargs):
-		super(EchoClient, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(EchoClient, self).__init__(*args, **kwargs)
 
-		self.sock = kwargs['sock']
-		self.addr = kwargs['addr']
-		self.exit = False
-		
-	def run(self):
-		self.info('Accepted connection: %r', (self.addr,))
+        self.sock = kwargs['sock']
+        self.addr = kwargs['addr']
+        self.exit = False
 
-		while not self.exit:
-			try:
-				buf = self.sock.recv(1024)
-			except coro.CoroutineSocketWake:
-				continue
-			except socket.error:
-				buf = ''
+    def run(self):
+        self.info('Accepted connection: %r', (self.addr,))
 
-			if not buf:
-				break
+        while not self.exit:
+            try:
+                buf = self.sock.recv(1024)
+            except coro.CoroutineSocketWake:
+                continue
+            except socket.error:
+                buf = ''
 
-			try:
-				self.sock.send(buf)
-			except coro.CoroutineSocketWake:
-				continue
-			except socket.error:
-				break
+            if not buf:
+                break
 
-		self.sock.close()
-		self.info('Connection closed: %r', (self.addr,))
+            try:
+                self.sock.send(buf)
+            except coro.CoroutineSocketWake:
+                continue
+            except socket.error:
+                break
 
-	def shutdown(self):
-		self.exit = True
-		self.sock.wake()
+        self.sock.close()
+        self.info('Connection closed: %r', (self.addr,))
+
+    def shutdown(self):
+        self.exit = True
+        self.sock.wake()
 
 class EchoServer(coro.Thread):
-	def __init__(self, *args, **kwargs):
-		super(EchoServer, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(EchoServer, self).__init__(*args, **kwargs)
 
-		self.addr = kwargs['addr']
-		self.sock = None
-		self.exit = False
+        self.addr = kwargs['addr']
+        self.sock = None
+        self.exit = False
 
-	def run(self):
-		self.sock = coro.make_socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self.sock.bind(self.addr)
-		self.sock.listen(128)
+    def run(self):
+        self.sock = coro.make_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(self.addr)
+        self.sock.listen(128)
 
-		self.info('Listening to address: %r' % (self.addr,))
-	
-		while not self.exit:
-			try:
-				conn, addr = self.sock.accept()
-			except coro.CoroutineSocketWake:
-				continue
-			except Exception, e:
-				self.error('Exception from accept: %r', e)
-				break
+        self.info('Listening to address: %r' % (self.addr,))
 
-			eclnt = EchoClient(addr = addr, sock = conn)
-			eclnt.start()
+        while not self.exit:
+            try:
+                conn, addr = self.sock.accept()
+            except coro.CoroutineSocketWake:
+                continue
+            except Exception, e:
+                self.error('Exception from accept: %r', e)
+                break
 
-		self.sock.close()
-		
-		for child in self.child_list():
-			child.shutdown()
+            eclnt = EchoClient(addr = addr, sock = conn)
+            eclnt.start()
 
-		self.child_wait(30)
-		self.info('Server exit.')
+        self.sock.close()
 
-	def shutdown(self):
-		self.exit = True
-		self.sock.wake()
-		
+        for child in self.child_list():
+            child.shutdown()
+
+        self.child_wait(30)
+        self.info('Server exit.')
+
+    def shutdown(self):
+        self.exit = True
+        self.sock.wake()
+
 def main(argv, stdout, environ):
-	eserv = EchoServer(addr = ('', ECHO_PORT))
-	eserv.start()
+    eserv = EchoServer(addr = ('', ECHO_PORT))
+    eserv.start()
 
-	def shutdown_handler(signum, frame):
-		eserv.shutdown()
+    def shutdown_handler(signum, frame):
+        eserv.shutdown()
 
-	signal.signal(signal.SIGUSR2, shutdown_handler)
+    signal.signal(signal.SIGUSR2, shutdown_handler)
 
-	try:
-		coro.event_loop()
-	except KeyboardInterrupt:
-		pass
+    try:
+        coro.event_loop()
+    except KeyboardInterrupt:
+        pass
 
-	return None
+    return None
 
 if __name__ == '__main__':
   main(sys.argv, sys.stdout, os.environ)

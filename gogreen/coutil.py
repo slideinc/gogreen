@@ -52,7 +52,7 @@ class object_queue:
     # object queue
     self._queue = []
     self._c = coro.coroutine_cond()
-    
+
   def __len__ (self):
     return len(self._queue)
 
@@ -60,7 +60,7 @@ class object_queue:
     # place data in the queue, and wake up a consumer
     self._queue.append(q)
     self._c.wake_one()
-      
+
   def pop (self):
     # if there is nothing in the queue, wait to be awoken
     while not len(self._queue):
@@ -68,7 +68,7 @@ class object_queue:
 
     item = self._queue[0]
     del self._queue[0]
-    
+
     return item
 
 class critical_section:
@@ -112,14 +112,14 @@ class conditional_id:
 
     self.__wait_map = {}
     self.__map_cond = coro.coroutine_cond()
-     
+
   def wait(self, id):
 
     self.__wait_map[id] = coro.current_thread().thread_id()
     self.__map_cond.wait()
 
     return None
-  
+
   def wake(self, id):
 
     if self.__wait_map.has_key(id):

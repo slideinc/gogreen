@@ -50,37 +50,37 @@ import corofile
 # save needed implementations.
 #
 original = {
-	'sleep': time.sleep,
-	}
+    'sleep': time.sleep,
+    }
 
 def sleep(value):
-	thrd = coro.current_thread()
-	if thrd is None:
-		original['sleep'](value)
-	else:
-		thrd.Yield(timeout = value)
+    thrd = coro.current_thread()
+    if thrd is None:
+        original['sleep'](value)
+    else:
+        thrd.Yield(timeout = value)
 
 def emulate_sleep():
-	time.sleep = sleep
+    time.sleep = sleep
 
 
 def init():
-	'''all
+    '''all
 
-	Enable emulation for all modules/code which can be emulated.
+    Enable emulation for all modules/code which can be emulated.
 
-	NOTE: only code which works correctly in coro AND main can/should
-	      be automatically initialized, the below emulations do not
-	      fall into that category, they only work in a coroutine, which
-	      is why the are here.	  
-	'''
-	coro.socket_emulate()
-	corocurl.emulate()
-	coromysql.emulate()
-	corofile.emulate_popen2()
-	#
-	# auto-emulations
-	#
-	emulate_sleep()
+    NOTE: only code which works correctly in coro AND main can/should
+          be automatically initialized, the below emulations do not
+          fall into that category, they only work in a coroutine, which
+          is why the are here.
+    '''
+    coro.socket_emulate()
+    corocurl.emulate()
+    coromysql.emulate()
+    corofile.emulate_popen2()
+    #
+    # auto-emulations
+    #
+    emulate_sleep()
 #
 # end..

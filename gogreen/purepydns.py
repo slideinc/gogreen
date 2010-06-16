@@ -66,49 +66,49 @@ DNS_CACHE_MAXSIZE = 512
 # Resolver instance used to perfrom DNS lookups.
 #
 class FakeAnswer(list):
-	expiration = 0
+    expiration = 0
 class FakeRecord(object):
-	pass
+    pass
 
 class ResolverProxy(object):
-	def __init__(self, *args, **kwargs):
-		self._resolver = None
-		self._filename = kwargs.get('filename', '/etc/resolv.conf')
-		self._hosts = {}
-		if kwargs.pop('dev', False):
-			self._load_etc_hosts()
+    def __init__(self, *args, **kwargs):
+        self._resolver = None
+        self._filename = kwargs.get('filename', '/etc/resolv.conf')
+        self._hosts = {}
+        if kwargs.pop('dev', False):
+            self._load_etc_hosts()
 
-	def _load_etc_hosts(self):
-		fd = open('/etc/hosts', 'r')
-		contents = fd.read()
-		fd.close()
-		contents = [line for line in contents.split('\n') if line and not line[0] == '#']
-		for line in contents:
-			line = line.replace('\t', ' ')
-			parts = line.split(' ')
-			parts = [p for p in parts if p]
-			if not len(parts):
-				continue
-			ip = parts[0]
-			for part in parts[1:]:
-				self._hosts[part] = ip
+    def _load_etc_hosts(self):
+        fd = open('/etc/hosts', 'r')
+        contents = fd.read()
+        fd.close()
+        contents = [line for line in contents.split('\n') if line and not line[0] == '#']
+        for line in contents:
+            line = line.replace('\t', ' ')
+            parts = line.split(' ')
+            parts = [p for p in parts if p]
+            if not len(parts):
+                continue
+            ip = parts[0]
+            for part in parts[1:]:
+                self._hosts[part] = ip
 
-	def clear(self):
-		self._resolver = None
+    def clear(self):
+        self._resolver = None
 
-	def query(self, *args, **kwargs):
-		if self._resolver is None:
-			self._resolver = dns.resolver.Resolver(filename = self._filename)
+    def query(self, *args, **kwargs):
+        if self._resolver is None:
+            self._resolver = dns.resolver.Resolver(filename = self._filename)
 
-		query = args[0]
-		if self._hosts and self._hosts.get(query):
-			answer = FakeAnswer()
-			record = FakeRecord()
-			setattr(record, 'address', self._hosts[query])
-			answer.append(record)
-			return answer
+        query = args[0]
+        if self._hosts and self._hosts.get(query):
+            answer = FakeAnswer()
+            record = FakeRecord()
+            setattr(record, 'address', self._hosts[query])
+            answer.append(record)
+            return answer
 
-		return self._resolver.query(*args, **kwargs)
+        return self._resolver.query(*args, **kwargs)
 #
 # cache
 #
@@ -116,411 +116,411 @@ resolver  = ResolverProxy()
 responses = cache.LRU(size = DNS_CACHE_MAXSIZE)
 
 def resolve(name):
-	error = None
-	rrset = responses.lookup(name)
-	
-	if rrset is None or time.time() > rrset.expiration:
-		try:
-			rrset = resolver.query(name)
-		except dns.exception.Timeout, e:
-			error = (socket.EAI_AGAIN, 'Lookup timed out')
-		except dns.exception.DNSException, e:
-			error = (socket.EAI_NODATA, 'No address associated with hostname')
-		else:
-			responses.insert(name, rrset)
+    error = None
+    rrset = responses.lookup(name)
 
-	if error:
-		if rrset is None:
-			raise socket.gaierror(error)
-		else:
-			sys.stderr.write('DNS error: %r %r\n' % (name, error))
+    if rrset is None or time.time() > rrset.expiration:
+        try:
+            rrset = resolver.query(name)
+        except dns.exception.Timeout, e:
+            error = (socket.EAI_AGAIN, 'Lookup timed out')
+        except dns.exception.DNSException, e:
+            error = (socket.EAI_NODATA, 'No address associated with hostname')
+        else:
+            responses.insert(name, rrset)
 
-	return rrset
+    if error:
+        if rrset is None:
+            raise socket.gaierror(error)
+        else:
+            sys.stderr.write('DNS error: %r %r\n' % (name, error))
+
+    return rrset
 #
 # methods
 #
 def getaliases(host):
-	"""Checks for aliases of the given hostname (cname records)
-	returns a list of alias targets
-	will return an empty list if no aliases
-	"""
-	cnames = []
-	error = None
-	
-	try:
-		answers = dns.resolver.query(host, 'cname')
-	except dns.exception.Timeout, e:
-		error = (socket.EAI_AGAIN, 'Lookup timed out')
-	except dns.exception.DNSException, e:
-		error = (socket.EAI_NODATA, 'No address associated with hostname')
-	else:
-		for record in answers:
-			cnames.append(str(answers[0].target))
+    """Checks for aliases of the given hostname (cname records)
+    returns a list of alias targets
+    will return an empty list if no aliases
+    """
+    cnames = []
+    error = None
 
-	if error:
-		sys.stderr.write('DNS error: %r %r\n' % (host, error))
+    try:
+        answers = dns.resolver.query(host, 'cname')
+    except dns.exception.Timeout, e:
+        error = (socket.EAI_AGAIN, 'Lookup timed out')
+    except dns.exception.DNSException, e:
+        error = (socket.EAI_NODATA, 'No address associated with hostname')
+    else:
+        for record in answers:
+            cnames.append(str(answers[0].target))
 
-	return cnames	
-		
-	
+    if error:
+        sys.stderr.write('DNS error: %r %r\n' % (host, error))
+
+    return cnames
+
+
 def getaddrinfo(host, port, family=0, socktype=0, proto=0, flags=0):
-	"""Replacement for Python's socket.getaddrinfo.
+    """Replacement for Python's socket.getaddrinfo.
 
-	Currently only supports IPv4.  At present, flags are not
-	implemented.
-	"""
-	socktype = socktype or socket.SOCK_STREAM
+    Currently only supports IPv4.  At present, flags are not
+    implemented.
+    """
+    socktype = socktype or socket.SOCK_STREAM
 
-	if is_ipv4_addr(host):
-		return [(socket.AF_INET, socktype, proto, '', (host, port))]
+    if is_ipv4_addr(host):
+        return [(socket.AF_INET, socktype, proto, '', (host, port))]
 
-	rrset = resolve(host)
-	value = []
+    rrset = resolve(host)
+    value = []
 
-	for rr in rrset:
-		value.append((socket.AF_INET, socktype, proto, '', (rr.address, port)))
+    for rr in rrset:
+        value.append((socket.AF_INET, socktype, proto, '', (rr.address, port)))
 
-	return value
+    return value
 
 def gethostbyname(hostname):
-	"""Replacement for Python's socket.gethostbyname.
+    """Replacement for Python's socket.gethostbyname.
 
-	Currently only supports IPv4.
-	"""
-	if is_ipv4_addr(hostname):
-		return hostname
+    Currently only supports IPv4.
+    """
+    if is_ipv4_addr(hostname):
+        return hostname
 
-	rrset = resolve(hostname)
-	return rrset[0].address
+    rrset = resolve(hostname)
+    return rrset[0].address
 
 def gethostbyname_ex(hostname):
-	"""Replacement for Python's socket.gethostbyname_ex.
+    """Replacement for Python's socket.gethostbyname_ex.
 
-	Currently only supports IPv4.
-	"""
+    Currently only supports IPv4.
+    """
 
-	if is_ipv4_addr(hostname):
-		return (hostname, [], [hostname])
+    if is_ipv4_addr(hostname):
+        return (hostname, [], [hostname])
 
-	rrset = resolve(hostname)
-	addrs = []
+    rrset = resolve(hostname)
+    addrs = []
 
-	for rr in rrset:
-		addrs.append(rr.address)
+    for rr in rrset:
+        addrs.append(rr.address)
 
-	return (hostname, [], addrs)
+    return (hostname, [], addrs)
 
 def getnameinfo(sockaddr, flags):
-	"""Replacement for Python's socket.getnameinfo.
+    """Replacement for Python's socket.getnameinfo.
 
-	Currently only supports IPv4.
-	"""
-	host, port = sockaddr
+    Currently only supports IPv4.
+    """
+    host, port = sockaddr
 
-	if (flags & socket.NI_NAMEREQD) and (flags & socket.NI_NUMERICHOST):
-		# Conflicting flags.  Punt.
-		raise socket.gaierror(
-			(socket.EAI_NONAME, 'Name or service not known'))
+    if (flags & socket.NI_NAMEREQD) and (flags & socket.NI_NUMERICHOST):
+        # Conflicting flags.  Punt.
+        raise socket.gaierror(
+            (socket.EAI_NONAME, 'Name or service not known'))
 
-	if is_ipv4_addr(host):
-		try:
-			rrset =	resolver.query(
-				dns.reversename.from_address(host), dns.rdatatype.PTR)
-			if len(rrset) > 1:
-				raise socket.error('sockaddr resolved to multiple addresses')
-			host = rrset[0].target.to_text(omit_final_dot=True)
-		except dns.exception.Timeout, e:
-			if flags & socket.NI_NAMEREQD:
-				raise socket.gaierror((socket.EAI_AGAIN, 'Lookup timed out'))
-		except dns.exception.DNSException, e:
-			if flags & socket.NI_NAMEREQD:
-				raise socket.gaierror(
-					(socket.EAI_NONAME, 'Name or service not known'))
-	else:
-		try:
-			rrset = resolver.query(host)
-			if len(rrset) > 1:
-				raise socket.error('sockaddr resolved to multiple addresses')
-			if flags & socket.NI_NUMERICHOST:
-				host = rrset[0].address
-		except dns.exception.Timeout, e:
-			raise socket.gaierror((socket.EAI_AGAIN, 'Lookup timed out'))
-		except dns.exception.DNSException, e:
-			raise socket.gaierror(
-				(socket.EAI_NODATA, 'No address associated with hostname'))
+    if is_ipv4_addr(host):
+        try:
+            rrset =	resolver.query(
+                dns.reversename.from_address(host), dns.rdatatype.PTR)
+            if len(rrset) > 1:
+                raise socket.error('sockaddr resolved to multiple addresses')
+            host = rrset[0].target.to_text(omit_final_dot=True)
+        except dns.exception.Timeout, e:
+            if flags & socket.NI_NAMEREQD:
+                raise socket.gaierror((socket.EAI_AGAIN, 'Lookup timed out'))
+        except dns.exception.DNSException, e:
+            if flags & socket.NI_NAMEREQD:
+                raise socket.gaierror(
+                    (socket.EAI_NONAME, 'Name or service not known'))
+    else:
+        try:
+            rrset = resolver.query(host)
+            if len(rrset) > 1:
+                raise socket.error('sockaddr resolved to multiple addresses')
+            if flags & socket.NI_NUMERICHOST:
+                host = rrset[0].address
+        except dns.exception.Timeout, e:
+            raise socket.gaierror((socket.EAI_AGAIN, 'Lookup timed out'))
+        except dns.exception.DNSException, e:
+            raise socket.gaierror(
+                (socket.EAI_NODATA, 'No address associated with hostname'))
 
-	if not (flags & socket.NI_NUMERICSERV):
-		proto = (flags & socket.NI_DGRAM) and 'udp' or 'tcp'
-		port = socket.getservbyport(port, proto)
+    if not (flags & socket.NI_NUMERICSERV):
+        proto = (flags & socket.NI_DGRAM) and 'udp' or 'tcp'
+        port = socket.getservbyport(port, proto)
 
-	return (host, port)
+    return (host, port)
 
 def is_ipv4_addr(host):
-	"""is_ipv4_addr returns true if host is a valid IPv4 address in
-	dotted quad notation.
-	"""
-	try:
-		d1, d2, d3, d4 = map(int, host.split('.'))
-	except ValueError:
-		return False
+    """is_ipv4_addr returns true if host is a valid IPv4 address in
+    dotted quad notation.
+    """
+    try:
+        d1, d2, d3, d4 = map(int, host.split('.'))
+    except ValueError:
+        return False
 
-	if 0 <= d1 <= 255 and 0 <= d2 <= 255 and 0 <= d3 <= 255 and 0 <= d4 <= 255:
-		return True
+    if 0 <= d1 <= 255 and 0 <= d2 <= 255 and 0 <= d3 <= 255 and 0 <= d4 <= 255:
+        return True
 
-	return False
+    return False
 
 def _net_read(sock, count, expiration):
-	"""coro friendly replacement for dns.query._net_write
-	Read the specified number of bytes from sock.  Keep trying until we
-	either get the desired amount, or we hit EOF.
-	A Timeout exception will be raised if the operation is not completed
-	by the expiration time.
-	"""
-	s = ''
-	while count > 0:
-		try:
-			n = sock.recv(count)
-		except coro.TimeoutError:
-			## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
-			if expiration - time.time() <= 0.0:
-				raise dns.exception.Timeout
-		if n == '':
-			raise EOFError
-		count = count - len(n)
-		s = s + n
-	return s
+    """coro friendly replacement for dns.query._net_write
+    Read the specified number of bytes from sock.  Keep trying until we
+    either get the desired amount, or we hit EOF.
+    A Timeout exception will be raised if the operation is not completed
+    by the expiration time.
+    """
+    s = ''
+    while count > 0:
+        try:
+            n = sock.recv(count)
+        except coro.TimeoutError:
+            ## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
+            if expiration - time.time() <= 0.0:
+                raise dns.exception.Timeout
+        if n == '':
+            raise EOFError
+        count = count - len(n)
+        s = s + n
+    return s
 
 def _net_write(sock, data, expiration):
-	"""coro friendly replacement for dns.query._net_write
-	Write the specified data to the socket.
-	A Timeout exception will be raised if the operation is not completed
-	by the expiration time.
-	"""
-	current = 0
-	l = len(data)
-	while current < l:
-		try:
-			current += sock.send(data[current:])
-		except coro.TimeoutError:
-			## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
-			if expiration - time.time() <= 0.0:
-				raise dns.exception.Timeout
+    """coro friendly replacement for dns.query._net_write
+    Write the specified data to the socket.
+    A Timeout exception will be raised if the operation is not completed
+    by the expiration time.
+    """
+    current = 0
+    l = len(data)
+    while current < l:
+        try:
+            current += sock.send(data[current:])
+        except coro.TimeoutError:
+            ## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
+            if expiration - time.time() <= 0.0:
+                raise dns.exception.Timeout
 
 def udp(
-	q, where, timeout=DNS_QUERY_TIMEOUT, port=53, af=None, source=None,
-	source_port=0, ignore_unexpected=False):
-	"""coro friendly replacement for dns.query.udp
-	Return the response obtained after sending a query via UDP.
+    q, where, timeout=DNS_QUERY_TIMEOUT, port=53, af=None, source=None,
+    source_port=0, ignore_unexpected=False):
+    """coro friendly replacement for dns.query.udp
+    Return the response obtained after sending a query via UDP.
 
-	@param q: the query
-	@type q: dns.message.Message
-	@param where: where to send the message
-	@type where: string containing an IPv4 or IPv6 address
-	@param timeout: The number of seconds to wait before the query times out.
-	If None, the default, wait forever.
-	@type timeout: float
-	@param port: The port to which to send the message.  The default is 53.
-	@type port: int
-	@param af: the address family to use.  The default is None, which
-	causes the address family to use to be inferred from the form of of where.
-	If the inference attempt fails, AF_INET is used.
-	@type af: int
-	@rtype: dns.message.Message object
-	@param source: source address.  The default is the IPv4 wildcard address.
-	@type source: string
-	@param source_port: The port from which to send the message.
-	The default is 0.
-	@type source_port: int
-	@param ignore_unexpected: If True, ignore responses from unexpected
-	sources.  The default is False.
-	@type ignore_unexpected: bool"""
+    @param q: the query
+    @type q: dns.message.Message
+    @param where: where to send the message
+    @type where: string containing an IPv4 or IPv6 address
+    @param timeout: The number of seconds to wait before the query times out.
+    If None, the default, wait forever.
+    @type timeout: float
+    @param port: The port to which to send the message.  The default is 53.
+    @type port: int
+    @param af: the address family to use.  The default is None, which
+    causes the address family to use to be inferred from the form of of where.
+    If the inference attempt fails, AF_INET is used.
+    @type af: int
+    @rtype: dns.message.Message object
+    @param source: source address.  The default is the IPv4 wildcard address.
+    @type source: string
+    @param source_port: The port from which to send the message.
+    The default is 0.
+    @type source_port: int
+    @param ignore_unexpected: If True, ignore responses from unexpected
+    sources.  The default is False.
+    @type ignore_unexpected: bool"""
 
-	wire = q.to_wire()
-	if af is None:
-		try:
-			af = dns.inet.af_for_address(where)
-		except:
-			af = dns.inet.AF_INET
-	if af == dns.inet.AF_INET:
-		destination = (where, port)
-		if source is not None:
-			source = (source, source_port)
-	elif af == dns.inet.AF_INET6:
-		destination = (where, port, 0, 0)
-		if source is not None:
-			source = (source, source_port, 0, 0)
+    wire = q.to_wire()
+    if af is None:
+        try:
+            af = dns.inet.af_for_address(where)
+        except:
+            af = dns.inet.AF_INET
+    if af == dns.inet.AF_INET:
+        destination = (where, port)
+        if source is not None:
+            source = (source, source_port)
+    elif af == dns.inet.AF_INET6:
+        destination = (where, port, 0, 0)
+        if source is not None:
+            source = (source, source_port, 0, 0)
 
-	s = socket.socket(af, socket.SOCK_DGRAM)
-	s.settimeout(timeout)
-	try:
-		expiration = dns.query._compute_expiration(timeout)
-		if source is not None:
-			s.bind(source)
-		try:
-			s.sendto(wire, destination)
-		except coro.TimeoutError:
-			## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
-			if expiration - time.time() <= 0.0:
-				raise dns.exception.Timeout
-		while 1:
-			try:
-				(wire, from_address) = s.recvfrom(65535)
-			except coro.TimeoutError:
-				## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
-				if expiration - time.time() <= 0.0:
-					raise dns.exception.Timeout
-			if from_address == destination:
-				break
-			if not ignore_unexpected:
-				raise dns.query.UnexpectedSource(
-					'got a response from %s instead of %s'
-					% (from_address, destination))
-	finally:
-		s.close()
-	r = dns.message.from_wire(wire, keyring=q.keyring, request_mac=q.mac)
-	if not q.is_response(r):
-		raise dns.query.BadResponse()
-	return r
+    s = socket.socket(af, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        expiration = dns.query._compute_expiration(timeout)
+        if source is not None:
+            s.bind(source)
+        try:
+            s.sendto(wire, destination)
+        except coro.TimeoutError:
+            ## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
+            if expiration - time.time() <= 0.0:
+                raise dns.exception.Timeout
+        while 1:
+            try:
+                (wire, from_address) = s.recvfrom(65535)
+            except coro.TimeoutError:
+                ## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
+                if expiration - time.time() <= 0.0:
+                    raise dns.exception.Timeout
+            if from_address == destination:
+                break
+            if not ignore_unexpected:
+                raise dns.query.UnexpectedSource(
+                    'got a response from %s instead of %s'
+                    % (from_address, destination))
+    finally:
+        s.close()
+    r = dns.message.from_wire(wire, keyring=q.keyring, request_mac=q.mac)
+    if not q.is_response(r):
+        raise dns.query.BadResponse()
+    return r
 
 def tcp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
-	af=None, source=None, source_port=0):
-	"""coro friendly replacement for dns.query.tcp
-	Return the response obtained after sending a query via TCP.
+    af=None, source=None, source_port=0):
+    """coro friendly replacement for dns.query.tcp
+    Return the response obtained after sending a query via TCP.
 
-	@param q: the query
-	@type q: dns.message.Message object
-	@param where: where to send the message
-	@type where: string containing an IPv4 or IPv6 address
-	@param timeout: The number of seconds to wait before the query times out.
-	If None, the default, wait forever.
-	@type timeout: float
-	@param port: The port to which to send the message.  The default is 53.
-	@type port: int
-	@param af: the address family to use.  The default is None, which
-	causes the address family to use to be inferred from the form of of where.
-	If the inference attempt fails, AF_INET is used.
-	@type af: int
-	@rtype: dns.message.Message object
-	@param source: source address.  The default is the IPv4 wildcard address.
-	@type source: string
-	@param source_port: The port from which to send the message.
-	The default is 0.
-	@type source_port: int"""
-	
-	wire = q.to_wire()
-	if af is None:
-		try:
-			af = dns.inet.af_for_address(where)
-		except:
-			af = dns.inet.AF_INET
-	if af == dns.inet.AF_INET:
-		destination = (where, port)
-		if source is not None:
-			source = (source, source_port)
-	elif af == dns.inet.AF_INET6:
-		destination = (where, port, 0, 0)
-		if source is not None:
-			source = (source, source_port, 0, 0)
-	s = socket.socket(af, socket.SOCK_STREAM)
-	s.settimeout(timeout)
-	try:
-		expiration = dns.query._compute_expiration(timeout)
-		if source is not None:
-			s.bind(source)
-		try:
-			s.connect(destination)
-		except coro.TimeoutError:
-			## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
-			if expiration - time.time() <= 0.0:
-				raise dns.exception.Timeout
+    @param q: the query
+    @type q: dns.message.Message object
+    @param where: where to send the message
+    @type where: string containing an IPv4 or IPv6 address
+    @param timeout: The number of seconds to wait before the query times out.
+    If None, the default, wait forever.
+    @type timeout: float
+    @param port: The port to which to send the message.  The default is 53.
+    @type port: int
+    @param af: the address family to use.  The default is None, which
+    causes the address family to use to be inferred from the form of of where.
+    If the inference attempt fails, AF_INET is used.
+    @type af: int
+    @rtype: dns.message.Message object
+    @param source: source address.  The default is the IPv4 wildcard address.
+    @type source: string
+    @param source_port: The port from which to send the message.
+    The default is 0.
+    @type source_port: int"""
 
-		l = len(wire)
-		# copying the wire into tcpmsg is inefficient, but lets us
-		# avoid writev() or doing a short write that would get pushed
-		# onto the net
-		tcpmsg = struct.pack("!H", l) + wire
-		_net_write(s, tcpmsg, expiration)
-		ldata = _net_read(s, 2, expiration)
-		(l,) = struct.unpack("!H", ldata)
-		wire = _net_read(s, l, expiration)
-	finally:
-		s.close()
-	r = dns.message.from_wire(wire, keyring=q.keyring, request_mac=q.mac)
-	if not q.is_response(r):
-		raise dns.query.BadResponse()
-	return r
+    wire = q.to_wire()
+    if af is None:
+        try:
+            af = dns.inet.af_for_address(where)
+        except:
+            af = dns.inet.AF_INET
+    if af == dns.inet.AF_INET:
+        destination = (where, port)
+        if source is not None:
+            source = (source, source_port)
+    elif af == dns.inet.AF_INET6:
+        destination = (where, port, 0, 0)
+        if source is not None:
+            source = (source, source_port, 0, 0)
+    s = socket.socket(af, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        expiration = dns.query._compute_expiration(timeout)
+        if source is not None:
+            s.bind(source)
+        try:
+            s.connect(destination)
+        except coro.TimeoutError:
+            ## Q: Do we also need to catch coro.CoroutineSocketWake and pass?
+            if expiration - time.time() <= 0.0:
+                raise dns.exception.Timeout
+
+        l = len(wire)
+        # copying the wire into tcpmsg is inefficient, but lets us
+        # avoid writev() or doing a short write that would get pushed
+        # onto the net
+        tcpmsg = struct.pack("!H", l) + wire
+        _net_write(s, tcpmsg, expiration)
+        ldata = _net_read(s, 2, expiration)
+        (l,) = struct.unpack("!H", ldata)
+        wire = _net_read(s, l, expiration)
+    finally:
+        s.close()
+    r = dns.message.from_wire(wire, keyring=q.keyring, request_mac=q.mac)
+    if not q.is_response(r):
+        raise dns.query.BadResponse()
+    return r
 
 def emulate():
-	"""Resolve DNS with this module instead of the DNS resolution
-	functionality that's baked into Python's socket module.
-	"""
-	socket.getaddrinfo = getaddrinfo
-	socket.gethostbyname = gethostbyname
-	socket.gethostbyname_ex = gethostbyname_ex
-	socket.getnameinfo = getnameinfo
+    """Resolve DNS with this module instead of the DNS resolution
+    functionality that's baked into Python's socket module.
+    """
+    socket.getaddrinfo = getaddrinfo
+    socket.gethostbyname = gethostbyname
+    socket.gethostbyname_ex = gethostbyname_ex
+    socket.getnameinfo = getnameinfo
 
-	# Install our coro-friendly replacements for the tcp and udp
-	# query methods.
-	dns.query.tcp = tcp
-	dns.query.udp = udp
+    # Install our coro-friendly replacements for the tcp and udp
+    # query methods.
+    dns.query.tcp = tcp
+    dns.query.udp = udp
 
 def reset():
-	resolver.clear()
-	responses.reset(size = DNS_CACHE_MAXSIZE)
+    resolver.clear()
+    responses.reset(size = DNS_CACHE_MAXSIZE)
 
 def main(argv=None):
-	if argv is None: argv = sys.argv
+    if argv is None: argv = sys.argv
 
-	print "getaddrinfo('www.google.com', 80) returns: %s" % (
-		getaddrinfo('www.google.com', 80), )
-	print "getaddrinfo('www.slide.com', 80) returns: %s" % (
-		getaddrinfo('www.slide.com', 80), )
-	print "getaddrinfo('208.76.68.33', 80) returns: %s" % (
-		getaddrinfo('208.76.68.33', 80), )
-	try:
-		getaddrinfo('bogus.ghosthacked.net', 80)
-	except socket.gaierror:
-		print "getaddrinfo('bogus.ghosthacked.net', 80) failed as expected."
-	print
+    print "getaddrinfo('www.google.com', 80) returns: %s" % (
+        getaddrinfo('www.google.com', 80), )
+    print "getaddrinfo('www.slide.com', 80) returns: %s" % (
+        getaddrinfo('www.slide.com', 80), )
+    print "getaddrinfo('208.76.68.33', 80) returns: %s" % (
+        getaddrinfo('208.76.68.33', 80), )
+    try:
+        getaddrinfo('bogus.ghosthacked.net', 80)
+    except socket.gaierror:
+        print "getaddrinfo('bogus.ghosthacked.net', 80) failed as expected."
+    print
 
-	print "gethostbyname('www.google.com') returns: %s" % (
-		gethostbyname('www.google.com'), )
-	print "gethostbyname('www.slide.com') returns: %s" % (
-		gethostbyname('www.slide.com'), )
-	print "gethostbyname('208.76.68.33') returns: %s" % (
-		gethostbyname('208.76.68.33'), )
-	try:
-		gethostbyname('bogus.ghosthacked.net')
-	except socket.gaierror:
-		print "gethostbyname('bogus.ghosthacked.net') failed as expected."
-	print
+    print "gethostbyname('www.google.com') returns: %s" % (
+        gethostbyname('www.google.com'), )
+    print "gethostbyname('www.slide.com') returns: %s" % (
+        gethostbyname('www.slide.com'), )
+    print "gethostbyname('208.76.68.33') returns: %s" % (
+        gethostbyname('208.76.68.33'), )
+    try:
+        gethostbyname('bogus.ghosthacked.net')
+    except socket.gaierror:
+        print "gethostbyname('bogus.ghosthacked.net') failed as expected."
+    print
 
-	print "gethostbyname_ex('www.google.com') returns: %s" % (
-		gethostbyname_ex('www.google.com'), )
-	print "gethostbyname_ex('www.slide.com') returns: %s" % (
-		gethostbyname_ex('www.slide.com'), )
-	print "gethostbyname_ex('208.76.68.33') returns: %s" % (
-		gethostbyname_ex('208.76.68.33'), )
-	try:
-		gethostbyname_ex('bogus.ghosthacked.net')
-	except socket.gaierror:
-		print "gethostbyname_ex('bogus.ghosthacked.net') failed as expected."
-	print
+    print "gethostbyname_ex('www.google.com') returns: %s" % (
+        gethostbyname_ex('www.google.com'), )
+    print "gethostbyname_ex('www.slide.com') returns: %s" % (
+        gethostbyname_ex('www.slide.com'), )
+    print "gethostbyname_ex('208.76.68.33') returns: %s" % (
+        gethostbyname_ex('208.76.68.33'), )
+    try:
+        gethostbyname_ex('bogus.ghosthacked.net')
+    except socket.gaierror:
+        print "gethostbyname_ex('bogus.ghosthacked.net') failed as expected."
+    print
 
-	try:
-		getnameinfo(('www.google.com', 80), 0)
-	except socket.error:
-		print "getnameinfo(('www.google.com'), 80, 0) failed as expected."
-	print "getnameinfo(('www.slide.com', 80), 0) returns: %s" % (
-		getnameinfo(('www.slide.com', 80), 0), )
-	print "getnameinfo(('208.76.68.33', 80), 0) returns: %s" % (
-		getnameinfo(('208.76.68.33', 80), 0), )
-	try:
-		getnameinfo(('bogus.ghosthacked.net', 80), 0)
-	except socket.gaierror:
-		print "getnameinfo('bogus.ghosthacked.net') failed as expected."
+    try:
+        getnameinfo(('www.google.com', 80), 0)
+    except socket.error:
+        print "getnameinfo(('www.google.com'), 80, 0) failed as expected."
+    print "getnameinfo(('www.slide.com', 80), 0) returns: %s" % (
+        getnameinfo(('www.slide.com', 80), 0), )
+    print "getnameinfo(('208.76.68.33', 80), 0) returns: %s" % (
+        getnameinfo(('208.76.68.33', 80), 0), )
+    try:
+        getnameinfo(('bogus.ghosthacked.net', 80), 0)
+    except socket.gaierror:
+        print "getnameinfo('bogus.ghosthacked.net') failed as expected."
 
-	return 0
+    return 0
 
 if __name__ == '__main__':
-	sys.exit(main())
+    sys.exit(main())

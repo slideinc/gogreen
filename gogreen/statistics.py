@@ -43,234 +43,234 @@ QUEUE_DEPTH  = QUEUE_PERIOD[-1]
 HEAP_LIMIT   = 128
 
 class Recorder(object):
-	def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
-		self._global = [{'timestamp': 0, 'elapse': 0, 'count': 0}]
-		self._local  = {}
-		self._depth  = depth
-		self._period = period
-		
-	def _local_request(self, elapse, name, current):
-		#
-		# track average request time per second for a given period
-		#
-		record = self._local.setdefault(name, [])
+    def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
+        self._global = [{'timestamp': 0, 'elapse': 0, 'count': 0}]
+        self._local  = {}
+        self._depth  = depth
+        self._period = period
 
-		if not record or record[-1]['timestamp'] != current:
-			record.append({'timestamp': current, 'elapse': 0, 'count': 0})
+    def _local_request(self, elapse, name, current):
+        #
+        # track average request time per second for a given period
+        #
+        record = self._local.setdefault(name, [])
 
-		record[-1]['count']  += 1
-		record[-1]['elapse'] += int(elapse * 1000000)
-		#
-		# clear old entries
-		#
-		while len(record) > self._depth:
-			del(record[0])
+        if not record or record[-1]['timestamp'] != current:
+            record.append({'timestamp': current, 'elapse': 0, 'count': 0})
 
-	def _global_request(self, elapse, current):
-		#
-		# track average request time per second for a given period
-		#
-		if self._global[-1]['timestamp'] != current:
-			self._global.append({'timestamp': current,'elapse': 0,'count': 0})
+        record[-1]['count']  += 1
+        record[-1]['elapse'] += int(elapse * 1000000)
+        #
+        # clear old entries
+        #
+        while len(record) > self._depth:
+            del(record[0])
 
-		self._global[-1]['count']  += 1
-		self._global[-1]['elapse'] += int(elapse * 1000000)
-		#
-		# clear old entries
-		#
-		while len(self._global) > self._depth:
-			del(self._global[0])
-	#
-	# info API
-	#
-	def last(self):
-		return self._global[-1]['timestamp']
-	#
-	# logging API
-	#
-	def request(self, elapse, name = 'none', current = None):
-		if current is None:
-			current = int(time.time())
-		else:
-			current = int(current)
+    def _global_request(self, elapse, current):
+        #
+        # track average request time per second for a given period
+        #
+        if self._global[-1]['timestamp'] != current:
+            self._global.append({'timestamp': current,'elapse': 0,'count': 0})
 
-		self._local_request(elapse, name, current)
-		self._global_request(elapse, current)
-	#
-	# query API
-	#
-	def rate(self, current = None):
-		current = current or int(time.time())
-		results = []
-		index   = 0
+        self._global[-1]['count']  += 1
+        self._global[-1]['elapse'] += int(elapse * 1000000)
+        #
+        # clear old entries
+        #
+        while len(self._global) > self._depth:
+            del(self._global[0])
+    #
+    # info API
+    #
+    def last(self):
+        return self._global[-1]['timestamp']
+    #
+    # logging API
+    #
+    def request(self, elapse, name = 'none', current = None):
+        if current is None:
+            current = int(time.time())
+        else:
+            current = int(current)
 
-		timestamps, counts  = zip(*map(
-			lambda x: (x['timestamp'], x['count']),
-			self._global))
+        self._local_request(elapse, name, current)
+        self._global_request(elapse, current)
+    #
+    # query API
+    #
+    def rate(self, current = None):
+        current = current or int(time.time())
+        results = []
+        index   = 0
 
-		for period in self._period[::-1]:
-			index = bisect.bisect(timestamps, (current - period), index)
-			results.append(sum(counts[index:])/period)
+        timestamps, counts  = zip(*map(
+            lambda x: (x['timestamp'], x['count']),
+            self._global))
 
-		return results[::-1]
+        for period in self._period[::-1]:
+            index = bisect.bisect(timestamps, (current - period), index)
+            results.append(sum(counts[index:])/period)
 
-	def details(self, current = None):
-		current = current or int(time.time())
-		results = {}
+        return results[::-1]
 
-		for name, record in self._local.items():
-			results[name] = []
-			index = 0
+    def details(self, current = None):
+        current = current or int(time.time())
+        results = {}
 
-			timestamps, counts, elapse = zip(*map(
-				lambda x: (x['timestamp'], x['count'], x['elapse']),
-				record))
+        for name, record in self._local.items():
+            results[name] = []
+            index = 0
 
-			for period in self._period[::-1]:
-				index = bisect.bisect(timestamps, (current - period), index)
-				results[name].append({
-					'count':   sum(counts[index:]),
-					'elapse':  sum(elapse[index:]),
-					'seconds': period})
+            timestamps, counts, elapse = zip(*map(
+                lambda x: (x['timestamp'], x['count'], x['elapse']),
+                record))
 
-			results[name].reverse()
-		return results
+            for period in self._period[::-1]:
+                index = bisect.bisect(timestamps, (current - period), index)
+                results[name].append({
+                    'count':   sum(counts[index:]),
+                    'elapse':  sum(elapse[index:]),
+                    'seconds': period})
 
-	def averages(self, current = None):
-		current = current or int(time.time())
-		results = []
-		index   = 0
+            results[name].reverse()
+        return results
 
-		timestamps, counts, elapse  = zip(*map(
-			lambda x: (x['timestamp'], x['count'], x['elapse']),
-			self._global))
+    def averages(self, current = None):
+        current = current or int(time.time())
+        results = []
+        index   = 0
 
-		for period in self._period[::-1]:
-			index = bisect.bisect(timestamps, (current - period), index)
-			reqs  = sum(counts[index:])
+        timestamps, counts, elapse  = zip(*map(
+            lambda x: (x['timestamp'], x['count'], x['elapse']),
+            self._global))
 
-			results.append({
-				'count':   reqs/period,
-				'elapse':  (reqs and sum(elapse[index:])/reqs) or 0,
-				'seconds': period})
+        for period in self._period[::-1]:
+            index = bisect.bisect(timestamps, (current - period), index)
+            reqs  = sum(counts[index:])
 
-		return results[::-1]
+            results.append({
+                'count':   reqs/period,
+                'elapse':  (reqs and sum(elapse[index:])/reqs) or 0,
+                'seconds': period})
+
+        return results[::-1]
 
 
 class RecorderHitRate(object):
-	def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
-		self._global = [(0, 0, 0)]
-		self._depth  = depth
-		self._period = period
-	#
-	# logging API
-	#
-	def request(self, hit = True, current = None):
-		if current is None:
-			current = int(time.time())
-		else:
-			current = int(current)
+    def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
+        self._global = [(0, 0, 0)]
+        self._depth  = depth
+        self._period = period
+    #
+    # logging API
+    #
+    def request(self, hit = True, current = None):
+        if current is None:
+            current = int(time.time())
+        else:
+            current = int(current)
 
-		pos = int(hit)
-		neg = int(not hit)
+        pos = int(hit)
+        neg = int(not hit)
 
-		if self._global[-1][0] != current:
-			self._global.append((current, pos, neg))
-		else:
-			current, oldpos, oldneg = self._global[-1]
-			self._global[-1] = (current, oldpos + pos, oldneg + neg)
+        if self._global[-1][0] != current:
+            self._global.append((current, pos, neg))
+        else:
+            current, oldpos, oldneg = self._global[-1]
+            self._global[-1] = (current, oldpos + pos, oldneg + neg)
 
-		while len(self._global) > self._depth:
-			del(self._global[0])
-	#
-	# query API
-	#
-	def data(self):
-		current = int(time.time())
-		results = []
-		index   = 0
+        while len(self._global) > self._depth:
+            del(self._global[0])
+    #
+    # query API
+    #
+    def data(self):
+        current = int(time.time())
+        results = []
+        index   = 0
 
-		timelist, poslist, neglist = zip(*self._global)
+        timelist, poslist, neglist = zip(*self._global)
 
-		for period in self._period[::-1]:
-			index = bisect.bisect(timelist, (current - period), index)
+        for period in self._period[::-1]:
+            index = bisect.bisect(timelist, (current - period), index)
 
-			pos = sum(poslist[index:])
-			neg = sum(neglist[index:])
+            pos = sum(poslist[index:])
+            neg = sum(neglist[index:])
 
-			results.append((pos, neg))
+            results.append((pos, neg))
 
-		return results[::-1]
+        return results[::-1]
 
-	def rate(self):
-		return map(
-			lambda i: sum(i) and float(i[0])/sum(i) or None,
-			self.data())
+    def rate(self):
+        return map(
+            lambda i: sum(i) and float(i[0])/sum(i) or None,
+            self.data())
 
 class WQSizeRecorder(object):
 
-	def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
-		self._global = [(0, 0, 0)]
-		self._depth  = depth
-		self._period = period
+    def __init__(self, depth = QUEUE_DEPTH, period = QUEUE_PERIOD):
+        self._global = [(0, 0, 0)]
+        self._depth  = depth
+        self._period = period
 
-	# logging API
-	def request(self, size, current = None):
-		if current is None:
-			current = int(time.time())
-		else:
-			current = int(current)
+    # logging API
+    def request(self, size, current = None):
+        if current is None:
+            current = int(time.time())
+        else:
+            current = int(current)
 
-		size = int(size)
+        size = int(size)
 
-		if self._global[-1][0] != current:
-			self._global.append((current, size, 1))
-		else:
-			current, oldsize, oldcnt = self._global[-1]
-			self._global[-1] = (current, oldsize + size, oldcnt + 1)
+        if self._global[-1][0] != current:
+            self._global.append((current, size, 1))
+        else:
+            current, oldsize, oldcnt = self._global[-1]
+            self._global[-1] = (current, oldsize + size, oldcnt + 1)
 
-		while len(self._global) > self._depth:
-			del(self._global[0])
+        while len(self._global) > self._depth:
+            del(self._global[0])
 
-	# query api
-	def sizes(self):
-		current = int(time.time())
-		results = []
-		index   = 0
+    # query api
+    def sizes(self):
+        current = int(time.time())
+        results = []
+        index   = 0
 
-		timelist, sizelist, cntlist = zip(*self._global)
+        timelist, sizelist, cntlist = zip(*self._global)
 
-		for period in self._period[::-1]:
-			index = bisect.bisect(timelist, (current - period), index)
+        for period in self._period[::-1]:
+            index = bisect.bisect(timelist, (current - period), index)
 
-			sizes = sizelist[index:]
-			cnts  = cntlist[index:]
-			results.append((sum(sizes), len(sizes)+sum(cnts)))
+            sizes = sizelist[index:]
+            cnts  = cntlist[index:]
+            results.append((sum(sizes), len(sizes)+sum(cnts)))
 
-		return results[::-1]		
+        return results[::-1]
 
 class TopRecorder(object):
-	def __init__(self, depth = HEAP_LIMIT, threshold = None):
-		self._heap  = [(0, None)]
-		self._depth = depth
-		self._hold  = threshold
+    def __init__(self, depth = HEAP_LIMIT, threshold = None):
+        self._heap  = [(0, None)]
+        self._depth = depth
+        self._hold  = threshold
 
-	def fetch(self, limit = None):
-		if limit:
-			return self._heap[-limit:]
-		else:
-			return self._heap
+    def fetch(self, limit = None):
+        if limit:
+            return self._heap[-limit:]
+        else:
+            return self._heap
 
-	def save(self, value, data):
-		if not value > self._hold:
-			return None
+    def save(self, value, data):
+        if not value > self._hold:
+            return None
 
-		if value < self._heap[0][0]:
-			return None
+        if value < self._heap[0][0]:
+            return None
 
-		bisect.insort(self._heap, (value, data))
+        bisect.insort(self._heap, (value, data))
 
-		while len(self._heap) > self._depth:
-			del(self._heap[0])
+        while len(self._heap) > self._depth:
+            del(self._heap[0])
 #
 # end..
