@@ -40,12 +40,11 @@ class WSGIAppHandler(object):
         return True
 
     def handle_request(self, request):
-        scheme = request._path.startswith("https://") and 'https' or 'http'
         address = request.server().socket.getsockname()
 
         environ = {
             'wsgi.version': (1, 0),
-            'wsgi.url_scheme': scheme,
+            'wsgi.url_scheme': 'http',
             'wsgi.input': WSGIInput(request),
             'wsgi.errors': sys.stderr, #XXX: fix this
             'wsgi.multithread': False,
