@@ -1,18 +1,11 @@
 '''
-This doesn't totally work yet.
-
-It's an exploration into hosting WSGI apps on the corohttpd mini-framework
-
-ATM wsgi.input is basically totally broken -- cgi.FieldStorage initially looked
-like it might do it right, but now the thing just hangs on post data. Again,
-doesn't totally work yet.
-
---travis
+untested, exploratory module serving a WSGI app on the corohttpd framework
 '''
 
-import sys
 import coro
 import corohttpd
+import os
+import sys
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -22,26 +15,60 @@ except ImportError:
 class WSGIInput(object):
     def __init__(self, request):
         self._request = request
-        self._infile = None
+        self._length = int(request.get_header('Content-Length', '0'))
 
-    def _start_reading(self):
-        if not self._infile:
-            fs = self._request.get_field_storage()
-            fs.read_binary()
-            self._infile = fs.file
-            self._infile.seek(0)
+    def read(self, size=-1):
+        conn = self._request._connection
+        gathered = len(conn.buffer)
 
-    def read(self, size):
-        self._start_reading()
-        return self._infile.read(size)
+        # reading Content-Length bytes should behave like EOF
+        if size >= 0:
+            size = max(size, self._length)
+
+        while 1:
+            data = conn.connection.recv(corohttpd.READ_CHUNK_SIZE)
+            gathered += len(data)
+            conn.buffer += data
+            if not data:
+                data, conn.buffer = conn.buffer, ''
+                self._length -= len(data)
+                return data
+            if size >= 0 and gathered > size:
+                break
+
+        data, conn.buffer = conn.buffer[:size], conn.buffer[size:]
+        self._length -= len(data)
+        return data
 
     def readline(self):
-        self._start_reading()
-        return self._infile.readline()
+        conn = self._request._connection
+        while 1:
+            index = conn.buffer.find("\r\n")
+            if index >= 0 or len(conn.buffer) >= self._length:
+                if index < 0:
+                    index = len(conn.buffer)
+                result, conn.buffer = conn.buffer[:index], conn.buffer[index:]
+                result = result[:self._length]
+                self._length -= len(result)
+                return result
+
+            data = conn.connection.recv(corohttpd.READ_CHUNK_SIZE)
+            if not data:
+                break
+            conn.buffer += data
+
+        result, conn.buffer = conn.buffer, ''
+        self._length -= len(result)
+        return result
 
     def readlines(self, hint=None):
-        self._start_reading()
-        return self._infile.readlines()
+        return list(self._readlines())
+
+    def _readlines(self):
+        line = self.readline()
+        while line:
+            yield line
+            line = self.readline()
 
 
 class WSGIAppHandler(object):
