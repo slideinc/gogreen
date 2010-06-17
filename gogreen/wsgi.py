@@ -138,7 +138,7 @@ def serve(address, wsgiapp):
     server = corohttpd.HttpServer(args=(address,))
     server.push_handler(WSGIAppHandler(wsgiapp))
     server.start()
-    coro.event_loop(30.0)
+    coro.event_loop()
 
 
 def main():
