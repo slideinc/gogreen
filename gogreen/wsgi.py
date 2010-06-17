@@ -7,7 +7,7 @@ import corohttpd
 import sys
 
 
-class WSGIInput(object):
+class _WSGIInput(object):
     def __init__(self, request):
         self._request = request
         self._length = int(request.get_header('Content-Length', '0'))
@@ -79,7 +79,7 @@ class WSGIAppHandler(object):
         environ = {
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': 'http',
-            'wsgi.input': WSGIInput(request),
+            'wsgi.input': _WSGIInput(request),
             'wsgi.errors': sys.stderr, #XXX: fix this
             'wsgi.multithread': False,
             'wsgi.multiprocess': False,
