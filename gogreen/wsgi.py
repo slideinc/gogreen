@@ -23,7 +23,7 @@ class WSGIInput(object):
 
         # reading Content-Length bytes should behave like EOF
         if size >= 0:
-            size = max(size, self._length)
+            size = min(size, self._length)
 
         while 1:
             data = conn.connection.recv(corohttpd.READ_CHUNK_SIZE)
@@ -33,7 +33,7 @@ class WSGIInput(object):
                 data, conn.buffer = conn.buffer, ''
                 self._length -= len(data)
                 return data
-            if size >= 0 and gathered > size:
+            if size >= 0 and gathered >= size:
                 break
 
         data, conn.buffer = conn.buffer[:size], conn.buffer[size:]
