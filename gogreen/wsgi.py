@@ -4,12 +4,7 @@ untested, exploratory module serving a WSGI app on the corohttpd framework
 
 import coro
 import corohttpd
-import os
 import sys
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 
 class WSGIInput(object):
