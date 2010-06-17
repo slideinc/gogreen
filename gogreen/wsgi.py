@@ -1,3 +1,15 @@
+'''
+This doesn't totally work yet.
+
+It's an exploration into hosting WSGI apps on the corohttpd mini-framework
+
+ATM wsgi.input is basically totally broken -- cgi.FieldStorage initially looked
+like it might do it right, but now the thing just hangs on post data. Again,
+doesn't totally work yet.
+
+--travis
+'''
+
 import sys
 import coro
 import corohttpd
