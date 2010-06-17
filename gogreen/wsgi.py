@@ -4,6 +4,7 @@ untested, exploratory module serving a WSGI app on the corohttpd framework
 
 import coro
 import corohttpd
+import logging
 import sys
 
 
@@ -66,6 +67,20 @@ class _WSGIInput(object):
             line = self.readline()
 
 
+class _WSGIErrors(object):
+    def __init__(self, logger):
+        self._log = logger
+
+    def flush(self):
+        pass
+
+    def write(self, msg):
+        self._log.log(logging.ERROR, msg)
+
+    def writelines(self, lines):
+        map(self.write, lines)
+
+
 class WSGIAppHandler(object):
     def __init__(self, app):
         self.app = app
@@ -75,12 +90,16 @@ class WSGIAppHandler(object):
 
     def handle_request(self, request):
         address = request.server().socket.getsockname()
+        if request._connection._log:
+            errors = _WSGIErrors(request._connection._log)
+        else:
+            errors = sys.stderr
 
         environ = {
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': 'http',
             'wsgi.input': _WSGIInput(request),
-            'wsgi.errors': sys.stderr, #XXX: fix this
+            'wsgi.errors': errors,
             'wsgi.multithread': False,
             'wsgi.multiprocess': False,
             'wsgi.run_once': False,
@@ -134,8 +153,19 @@ class WSGIAppHandler(object):
             request.push(chunk)
 
 
-def serve(address, wsgiapp):
-    server = corohttpd.HttpServer(args=(address,))
+def serve(address, wsgiapp, access_log='', error_log=None):
+    kwargs = {}
+    if error_log:
+        handler = logging.handlers.RotatingFileHandler(
+                filename or 'log',
+                'a',
+                corohttpd.ACCESS_LOG_SIZE_MAX,
+                corohttpd.ACCESS_LOG_COUNT_MAX)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        kwargs['log'] = logging.Logger('error')
+        kwargs['log'].addHandler(handler)
+
+    server = corohttpd.HttpServer(args=(address, access_log), **kwargs)
     server.push_handler(WSGIAppHandler(wsgiapp))
     server.start()
     coro.event_loop()
@@ -148,7 +178,7 @@ def main():
             ('Content-Length', '13')])
         return ["Hello, World!"]
 
-    serve(("", 8000), hello_wsgi_world)
+    serve(("", 8000), hello_wsgi_world, access_log='access.log')
 
 
 if __name__ == '__main__':
