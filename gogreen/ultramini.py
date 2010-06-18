@@ -519,11 +519,6 @@ def registerConverter(convertType, converter):
 def convert(request, stuff):
     """Recursively apply stuff converters until we get an xml instance.
     """
-    if not isinstance(stuff, xml):
-        print 'DEPRECATING auto-escaping. URI: %s RESOURCE: %r' % (
-            request.uri(),
-            request.resource)
-
     while not isinstance(stuff, xml):
         convert = converters.get(type(stuff))
         if convert is None:
