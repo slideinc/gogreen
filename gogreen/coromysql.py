@@ -167,7 +167,7 @@ def error_to_except(merr):
         return OperationalError
 
 # ===========================================================================
-#						   Authentication
+#                           Authentication
 # ===========================================================================
 #
 # switching to 4.1 password/handshake.
@@ -201,7 +201,7 @@ def scramble (message, password):
 
     return reply
 # ===========================================================================
-#						   Packet Protocol
+#                           Packet Protocol
 # ===========================================================================
 
 def unpacket (p):
@@ -479,11 +479,11 @@ class connection(object):
                 n = self.socket.send(data)
             except (socket.error, coro.TimeoutError):
                 raise NetworkError, (
-                    CR_SERVER_LOST,	'No connection to MySQL server')
+                    CR_SERVER_LOST, 'No connection to MySQL server')
 
             if not n:
                 raise NetworkError, (
-                    CR_SERVER_LOST,	'Lost connection to MySQL server')
+                    CR_SERVER_LOST, 'Lost connection to MySQL server')
 
             data = data[n:]
 
@@ -1102,27 +1102,27 @@ class connection(object):
             # cycle through all fields in the row appling decoders
             #
             # for i in xrange(self._nfields):
-            #	field   = fields[i]
-            #	decode  = decode_type_map[field[9]]
-            #	flags   = field[10]
-            #	preconv = self._preconv.get(field[9])
-            #	#
-            #	# find preconverter if it exists and is a sequence. This
-            #	# is field dependent
-            #	#
-            #	if operator.isSequenceType(preconv):
-            #		func = None
+            #    field   = fields[i]
+            #    decode  = decode_type_map[field[9]]
+            #    flags   = field[10]
+            #    preconv = self._preconv.get(field[9])
+            #    #
+            #    # find preconverter if it exists and is a sequence. This
+            #    # is field dependent
+            #    #
+            #    if operator.isSequenceType(preconv):
+            #        func = None
 
-            #		for mask, p in preconv:
-            #			if mask is None or mask & flags:
-            #				func = p
-            #				break
-            #	else:
-            #		func = preconv
-            #	#
-            #	# call decoder
-            #	#
-            #	row[i] = decode(row[i], flags, func)
+            #        for mask, p in preconv:
+            #            if mask is None or mask & flags:
+            #                func = p
+            #                break
+            #    else:
+            #        func = preconv
+            #    #
+            #    # call decoder
+            #    #
+            #    row[i] = decode(row[i], flags, func)
 
         self._latest_fields = fields
         self._latest_rows = rows
@@ -1321,33 +1321,33 @@ decode_type_names = ['unknown'] * 256
 # for any of these, just replace 'str' with your function.
 
 for code, cast, name in (
-    (0x00,	_null_int,	'decimal'),
-    (0x01,	_null_int,	'tiny'),
-    (0x02,	_null_int,	'short'),
-    (0x03,	_null_long,	'long'),
-    (0x04,	_null_float,	'float'),
-    (0x05,	_null_float,	'double'),
-    (0x06,	_null_str,	'null'),
-    (0x07,	_null_str,	'timestamp'),
-    (0x08,	_null_long,	'longlong'),
-    (0x09,	_null_int,	'int24'),
-    (0x0A,	_null_str,	'date'),       # unsure handling...
-    (0x0B,	_null_str,	'time'),       # unsure handling...
-    (0x0C,	_null_str,	'datetime'),   # unsure handling...
-    (0x0D,	_null_str,	'year'),       # unsure handling...
-    (0x0E,	_null_str,	'newdate'),    # unsure handling...
-    (0x0F,	_null_str,	'varchar'),    # unsure handling... MySQL 5.0
-    (0x10,	_null_str,	'bit'),        # unsure handling... MySQL 5.0
-    (0xF6,	_null_str,	'newdecimal'), # unsure handling... MySQL 5.0
-    (0xF7,	_null_str,	'enum'),       # unsure handling...
-    (0xF8,	_null_str,	'set'),        # unsure handling...
-    (0xF9,	_null_str,	'tiny_blob'),
-    (0xFA,	_null_str,	'medium_blob'),
-    (0xFB,	_null_str,	'long_blob'),
-    (0xFC,	_null_str,	'blob'),
-    (0xFD,	_null_str,	'var_string'), # in the C code it is VAR_STRING
-    (0xFE,	_null_str,	'string'),
-    (0xFF,	_null_str,	'geometry')    # unsure handling...
+    (0x00,    _null_int,    'decimal'),
+    (0x01,    _null_int,    'tiny'),
+    (0x02,    _null_int,    'short'),
+    (0x03,    _null_long,   'long'),
+    (0x04,    _null_float,  'float'),
+    (0x05,    _null_float,  'double'),
+    (0x06,    _null_str,    'null'),
+    (0x07,    _null_str,    'timestamp'),
+    (0x08,    _null_long,   'longlong'),
+    (0x09,    _null_int,    'int24'),
+    (0x0A,    _null_str,    'date'),       # unsure handling...
+    (0x0B,    _null_str,    'time'),       # unsure handling...
+    (0x0C,    _null_str,    'datetime'),   # unsure handling...
+    (0x0D,    _null_str,    'year'),       # unsure handling...
+    (0x0E,    _null_str,    'newdate'),    # unsure handling...
+    (0x0F,    _null_str,    'varchar'),    # unsure handling... MySQL 5.0
+    (0x10,    _null_str,    'bit'),        # unsure handling... MySQL 5.0
+    (0xF6,    _null_str,    'newdecimal'), # unsure handling... MySQL 5.0
+    (0xF7,    _null_str,    'enum'),       # unsure handling...
+    (0xF8,    _null_str,    'set'),        # unsure handling...
+    (0xF9,    _null_str,    'tiny_blob'),
+    (0xFA,    _null_str,    'medium_blob'),
+    (0xFB,    _null_str,    'long_blob'),
+    (0xFC,    _null_str,    'blob'),
+    (0xFD,    _null_str,    'var_string'), # in the C code it is VAR_STRING
+    (0xFE,    _null_str,    'string'),
+    (0xFF,    _null_str,    'geometry')    # unsure handling...
     ):
     decode_type_map[code] = cast
     decode_type_names[code] = name
@@ -1462,7 +1462,7 @@ def escape(s):
         return ""
     if type(s) == types.StringType:
         r = range(len(s))
-        r.reverse()		 # iterate backwards, so as not to destroy indexing
+        r.reverse() # iterate backwards, so as not to destroy indexing
 
         for i in r:
             if quote.has_key(s[i]):
