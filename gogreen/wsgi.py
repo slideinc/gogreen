@@ -21,6 +21,9 @@ class _WSGIInput(object):
         if size >= 0:
             size = min(size, self._length)
 
+        if not size:
+            return ''
+
         while 1:
             data = conn.connection.recv(corohttpd.READ_CHUNK_SIZE)
             gathered += len(data)
@@ -107,7 +110,7 @@ class WSGIAppHandler(object):
             'PATH_INFO': request._path,
             'SERVER_NAME': address[0],
             'SERVER_PORT': address[1],
-            'REQUEST_METHOD': request.method(),
+            'REQUEST_METHOD': request.method().upper(),
             'SERVER_PROTOCOL': request._connection.protocol_version,
         }
 
@@ -139,7 +142,7 @@ class WSGIAppHandler(object):
                     break
 
             code = int(status[:index - 1])
-            request.response(200)
+            request.response(code)
 
             for name, value in headers:
                 request.set_header(name, value)
