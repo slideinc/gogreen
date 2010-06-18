@@ -79,6 +79,7 @@ import sys
 import sha
 import array
 import time
+import select
 
 import coro
 
@@ -101,6 +102,8 @@ MYSQL_HEADER_SIZE     = 0x4
 
 SEND_BUF_SIZE  = 256*1024
 RECV_BUF_SIZE  = 256*1024
+
+CHECK_MASK = select.POLLIN|select.POLLERR|select.POLLHUP|select.POLLNVAL
 
 class MySQLError(exceptions.StandardError):
     pass
@@ -314,7 +317,10 @@ class connection(object):
 
         self.socket = None
         self._lock  = 0
-        self._max_reconnect = MAX_RECONNECT_RETRY
+
+        self._reconnect_cmds = 0
+        self._reconnect_exec = 0
+        self._reconnect_maxr = MAX_RECONNECT_RETRY
 
         if not self._debug:
             self._timer_cond = coro.coroutine_cond()
@@ -458,6 +464,29 @@ class connection(object):
 
         return None
 
+    def _check(self):
+        #
+        # Perform a non-blocking poll on the socket to determine if there
+        # is an error/read readiness event waiting. If there is, then
+        # attempt to read into the internal connection buffer and handle
+        # the error occordingly.
+        #
+        # In normal operation we only expect readiness in the uncommon
+        # error case, normally there should be nothing (e.g. FIN) there.
+        #
+        p = select.poll()
+        p.register(self.socket, CHECK_MASK)
+
+        if not p.poll(0.0):
+            return None
+
+        try:
+            self.recv()
+        except NetworkError:
+            raise NetworkError(
+                    CR_SERVER_GONE_ERROR,
+                    'MySQL server has gone away')
+
     def recv(self):
         try:
             data = self.socket.recv(DEFAULT_RECV_SIZE)
@@ -465,8 +494,9 @@ class connection(object):
             data = ''
 
         if not data:
-            raise NetworkError, (
-                CR_SERVER_LOST, 'Lost connection to MySQL server during query')
+            raise NetworkError(
+                CR_SERVER_LOST,
+                'Lost connection to MySQL server during query')
 
         if self._rbuf:
             self._rbuf += data
@@ -478,12 +508,12 @@ class connection(object):
             try:
                 n = self.socket.send(data)
             except (socket.error, coro.TimeoutError):
-                raise NetworkError, (
-                    CR_SERVER_LOST, 'No connection to MySQL server')
+                n = 0
 
             if not n:
-                raise NetworkError, (
-                    CR_SERVER_LOST, 'Lost connection to MySQL server')
+                raise NetworkError(
+                    CR_SERVER_GONE_ERROR,
+                    'MySQL server has gone away')
 
             data = data[n:]
 
@@ -906,70 +936,113 @@ class connection(object):
          self._warning_count) = self.read_reply_header()
         return None
 
+    def reconnect_cmds(self, value):
+        '''reconnect_cmds
+
+        Assign the number of DB commands which will have reconnect retry
+        enabled and reset the counter of commands executed towards this
+        counter back to 0. To set the actual number of retries use
+        reconnect_retry_set()
+
+        The value is the number of commands for which retry will be
+        enabled. (default: 0) The value None indicates no limit.
+
+        NOTE: The reason for the existence of this method is that once
+              a transaction has begun auto-reconnect can lead to results
+              that are inconsistent. If auto-reconnect is desired with a
+              connection then it should only be enabled for the first
+              command.
+        '''
+        self._reconnect_cmds = value
+        self._reconnect_exec = 0
+
     def reconnect_retry_set(self, value = MAX_RECONNECT_RETRY):
         '''reconnect_retry_set
 
         Set the max reconnect retry count. Once a transaction has begun
         this must be set to 0 to ensure correctness.
         '''
-        self._max_reconnect = value
+        self._reconnect_maxr = value
 
     def _reconnect_retry(self):
-        return self._max_reconnect
+        if self._reconnect_cmds is None:
+            return self._reconnect_maxr
+
+        if self._reconnect_cmds > self._reconnect_exec:
+            return self._reconnect_maxr
+
+        return 0
+
+    def _reconnect_check(self, retry_count):
+        #
+        # for now only check when reconnect is enabled, but
+        # check might make sense in all cases, and reraise
+        # when reconnect has run out...
+        #
+        if not retry_count < self._reconnect_retry():
+            return False
+
+        try:
+            self._check()
+        except NetworkError, e:
+            self._close()
+            #
+            # we only attempt reconnect on write errors to the
+            # server. (basically stale/dead connection) read
+            # errors need to be propagated to the consumer.
+            #
+            if e[0] != CR_SERVER_GONE_ERROR:
+                raise e
+        else:
+            return False
+        #
+        # network error. close, sleep and retry
+        #
+        self._close()
+
+        sleep_time = retry_count * RECONNECT_RETRY_GRAIN
+
+        coro.log.info('<%r> lost connection, sleeping <%0.1f>' % (
+            self.address, sleep_time))
+
+        self.sleep(sleep_time)
+        return True
 
     def _execute_with_retry(self, method_name, args = ()):
-        method = getattr(self, method_name)
         retry_count = 0
-        error = None
         #
         # lock down the connection while we are performing a query.
         #
         self._lock_connection()
 
         try:
-            while not (retry_count > self._reconnect_retry()):
+            while True:
                 try:
                     self.check_connection()
                 except NetworkError, e:
-                    raise error_to_except(e[0]), e.args
+                    self._close()
+                    raise e
+
+                if self._reconnect_check(retry_count):
+                    retry_count += 1
+                    continue
 
                 try:
-                    retval = apply(method, args)
-                except NetworkError, e:
+                    return apply(getattr(self, method_name), args)
+                except IntegrityError, e:
+                    raise e
+                except ProgrammingError, e:
+                    raise e
+                except exceptions.Exception, e:
                     self._close()
-                    error = e
-                except IntegrityError:
-                    raise
-                except ProgrammingError:
-                    raise
-                except:
-                    self._close()
-                    raise
-                else:
-                    error = None
-                    break
-                #
-                # network error, sleep and retry
-                #
-                sleep_time = retry_count * RECONNECT_RETRY_GRAIN
-                retry_count += 1
-
-                log('<%r> lost connection, sleeping <%0.1f>' % (
-                    self.address, sleep_time))
-
-                self.sleep(sleep_time)
+                    raise e
         finally:
             #
-            # unlock the connection ( I must be retarded for not having this in
-            # a finally clause. I was loosing the connect thread, and everyone
-            # else was frozen on the lock.)
-            #
+            # unlock the connection 
             self._unlock_connection()
-
-        if error is not None:
-            raise error_to_except(error[0]), error.args
-
-        return retval
+            #
+            # Increment the number of commands executed.
+            self._reconnect_exec += 1
     #
     # MySQL module compatibility, properly wraps raw client requests,
     # to format the return types.
