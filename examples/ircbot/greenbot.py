@@ -84,14 +84,8 @@ class Bot(coro.Thread):
             worker = BotWorker(self, args=(line,))
             worker.start()
 
-    def handle_ping(self, args, prefix):
+    def on_ping(self, cmd, args, prefix):
         self.cmd("pong", args[0])
-
-    def handle_nick(self, args, prefix):
-        self.on_nick_changed(args[0])
-
-    def on_nick_changed(self, new_nick):
-        pass
 
     def default_handler(self, cmd, args, prefix):
         pass
