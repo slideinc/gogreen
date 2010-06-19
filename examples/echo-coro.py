@@ -33,8 +33,9 @@
 import socket
 import sys
 import os
-import coro
 import signal
+
+from gogreen import coro
 
 ECHO_PORT = 5580
 
@@ -132,5 +133,3 @@ def main(argv, stdout, environ):
 
 if __name__ == '__main__':
   main(sys.argv, sys.stdout, os.environ)
-
-
