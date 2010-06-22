@@ -35,6 +35,10 @@ class OpsHolderBot(basebot.Bot):
                 len(args) > 2 and args[2] == self.nick:
             self._chanops[context] = True
 
+        parent = super(OpsHolderBot, self)
+        if hasattr(parent, "on_mode"):
+            parent.on_mode(cmd, args, prefix)
+
     def on_privmsg(self, cmd, args, prefix):
         # ignore channels
         if args[0] != self.nick:
@@ -52,9 +56,17 @@ class OpsHolderBot(basebot.Bot):
         else:
             self.message(sender, "sorry, wrong password")
 
+        parent = super(OpsHolderBot, self)
+        if hasattr(praent, "on_privmsg"):
+            parent.on_privmsg(cmd, args, prefix)
+
     def on_reply_353(self, code, args, prefix):
         # 353 is sent when joining a room -- this tests to see if we are given
         # chanops upon entrance (we are the first here, creating the room)
         names = args[-1]
         if "@" + self.nick in names.split(" "):
             self._chanops[args[-2]] = True
+
+        parent = super(OpsHolderBot, self)
+        if hasattr(praent, "on_reply_353"):
+            parent.on_reply_353(cmd, args, prefix)
