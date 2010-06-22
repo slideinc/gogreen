@@ -7,3 +7,5 @@ build/*
 docs/build/*
 dist/*
 html/*
+
+examples/ircbot/run.py
