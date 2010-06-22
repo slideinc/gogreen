@@ -27,6 +27,10 @@ class OpsHolderBot(basebot.Bot):
         self._chanops[room] = False
 
     def on_mode(self, cmd, args, prefix):
+        parent = super(OpsHolderBot, self)
+        if hasattr(parent, "on_mode"):
+            parent.on_mode(cmd, args, prefix)
+
         # MODE is how another user would give us ops -- test for that case
         context, mode_change = args[:2]
         if context.startswith("#") and \
@@ -35,16 +39,19 @@ class OpsHolderBot(basebot.Bot):
                 len(args) > 2 and args[2] == self.nick:
             self._chanops[context] = True
 
-        parent = super(OpsHolderBot, self)
-        if hasattr(parent, "on_mode"):
-            parent.on_mode(cmd, args, prefix)
-
     def on_privmsg(self, cmd, args, prefix):
+        parent = super(OpsHolderBot, self)
+        if hasattr(parent, "on_privmsg"):
+            parent.on_privmsg(cmd, args, prefix)
+
         # ignore channels
         if args[0] != self.nick:
             return
 
         sender = prefix.split("!", 1)[0]
+
+        if " " not in args[1]:
+            return
         passwd, roomname = args[1].rsplit(" ", 1)
 
         if passwd == self._ops_password:
@@ -56,17 +63,13 @@ class OpsHolderBot(basebot.Bot):
         else:
             self.message(sender, "sorry, wrong password")
 
-        parent = super(OpsHolderBot, self)
-        if hasattr(parent, "on_privmsg"):
-            parent.on_privmsg(cmd, args, prefix)
-
     def on_reply_353(self, code, args, prefix):
+        parent = super(OpsHolderBot, self)
+        if hasattr(parent, "on_reply_353"):
+            parent.on_reply_353(cmd, args, prefix)
+
         # 353 is sent when joining a room -- this tests to see if we are given
         # chanops upon entrance (we are the first here, creating the room)
         names = args[-1]
         if "@" + self.nick in names.split(" "):
             self._chanops[args[-2]] = True
-
-        parent = super(OpsHolderBot, self)
-        if hasattr(parent, "on_reply_353"):
-            parent.on_reply_353(cmd, args, prefix)
