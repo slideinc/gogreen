@@ -60,13 +60,16 @@ class Bot(coro.Thread):
         for room in self.rooms:
             if room in self.in_rooms:
                 continue
+            if not hasattr(room, "__iter__"):
+                room = (room,)
+            self.join_room(*room)
 
-            if hasattr(room, "__iter__"):
-                # room is (room, password)
-                self.cmd("join", *room)
-            else:
-                self.cmd("join", room)
-            self.in_rooms.add(room)
+    def join_room(self, room, password=None):
+        if password is None:
+            self.cmd("join", room)
+        else:
+            self.cmd("join", room, password)
+        self.in_rooms.add(room)
 
     def message(self, target, message):
         self.cmd("privmsg", target, message)

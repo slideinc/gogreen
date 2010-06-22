@@ -22,8 +22,8 @@ class OpsHolderBot(basebot.Bot):
         super(OpsHolderBot, self).__init__(*args, **kwargs)
         self._chanops = {}
 
-    def join(self, room, passwd=None):
-        super(OpsHolderBot, self).join(room, passwd)
+    def join_room(self, room, passwd=None):
+        super(OpsHolderBot, self).join_room(room, passwd)
         self._chanops[room] = False
 
     def on_mode(self, cmd, args, prefix):

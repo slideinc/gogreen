@@ -11,8 +11,8 @@ class LogBot(basebot.Bot):
         super(LogBot, self).__init__(*args, **kwargs)
         self.logs = {}
 
-    def join(self, room, password=None):
-        super(LogBot, self).join(room, password)
+    def join_room(self, room, password=None):
+        super(LogBot, self).join_room(room, password)
 
         handler = logging.handlers.RotatingFileHandler(
                 self.filename_format % room, 'a', 6291456, 5)
