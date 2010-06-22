@@ -26,9 +26,6 @@ class OpsHolderBot(basebot.Bot):
         super(OpsHolderBot, self).join(room, passwd)
         self._chanops[room] = False
 
-    def post_register(self):
-        self.cmd("privmsg", "NickServ", "identify %s" % self.password)
-
     def on_mode(self, cmd, args, prefix):
         # MODE is how another user would give us ops -- test for that case
         context, mode_change = args[:2]
@@ -39,7 +36,7 @@ class OpsHolderBot(basebot.Bot):
             self._chanops[context] = True
 
     def on_privmsg(self, cmd, args, prefix):
-        # no chatrooms for this
+        # ignore channels
         if args[0] != self.nick:
             return
 
