@@ -10,6 +10,7 @@ class Bot(coro.Thread):
             username=None,
             realname=None,
             password=None,
+            nickserv=None,
             rooms=None):
         super(Bot, self).__init__()
         self.server_address = server_address
@@ -17,7 +18,10 @@ class Bot(coro.Thread):
         self.username = username or nick
         self.realname = realname or nick
         self.password = password
+        self.nickserv = nickserv
         self.rooms = rooms or []
+        self.in_rooms = set()
+        self.connected = self.registered = False
 
     def cmd(self, cmd, *args):
         args = map(str, args)
@@ -36,13 +40,17 @@ class Bot(coro.Thread):
         self.sock = coro.coroutine_socket(raw_sock)
         self.sock.connect(self.server_address)
         self.write_lock = coro.coroutine_lock()
+        self.connected = True
 
     def register(self):
         self.cmd("nick", self.nick)
         self.cmd("user", self.username, 0, 0, self.realname)
         if self.password:
-            self.cmd("pass", self.password)
-        self.post_register()
+            if self.nickserv:
+                self.message(self.nickserv, "identify %s" % self.password)
+            else:
+                self.cmd("pass", self.password)
+        self.registered = True
 
     def change_nick(self, nick):
         self.nick = nick
@@ -50,11 +58,15 @@ class Bot(coro.Thread):
 
     def join_rooms(self):
         for room in self.rooms:
+            if room in self.in_rooms:
+                continue
+
             if hasattr(room, "__iter__"):
                 # room is (room, password)
                 self.cmd("join", *room)
             else:
                 self.cmd("join", room)
+            self.in_rooms.add(room)
 
     def message(self, target, message):
         self.cmd("privmsg", target, message)
@@ -69,8 +81,10 @@ class Bot(coro.Thread):
     def run(self):
         self.running = True
 
-        self.connect()
-        self.register()
+        if not self.connected:
+            self.connect()
+        if not self.registered:
+            self.register()
         self.join_rooms()
 
         sockfile = self.sock.makefile()

@@ -1,10 +1,7 @@
-#!/usr/bin/env python
-# vim: fileencoding=utf8:et:sta:ai:sw=4:ts=4:sts=4
-
-import greenbot
+import basebot
 
 
-class OpsHolderBot(greenbot.Bot):
+class OpsHolderBot(basebot.Bot):
     '''A most inactive bot, it will just sit in a room and hold any chanops you
     give it, doling out chanops upon request (when you provide the password)
 
