@@ -57,7 +57,7 @@ class OpsHolderBot(basebot.Bot):
             self.message(sender, "sorry, wrong password")
 
         parent = super(OpsHolderBot, self)
-        if hasattr(praent, "on_privmsg"):
+        if hasattr(parent, "on_privmsg"):
             parent.on_privmsg(cmd, args, prefix)
 
     def on_reply_353(self, code, args, prefix):
@@ -68,5 +68,5 @@ class OpsHolderBot(basebot.Bot):
             self._chanops[args[-2]] = True
 
         parent = super(OpsHolderBot, self)
-        if hasattr(praent, "on_reply_353"):
+        if hasattr(parent, "on_reply_353"):
             parent.on_reply_353(cmd, args, prefix)
