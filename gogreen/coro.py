@@ -63,9 +63,14 @@ except:
     _epoll = None
 
 try:
-    import itimer
-except:
-    itimer = None
+    signal.setitimer
+    signal.ITIMER_PROF
+    itimer = signal
+except NameError:
+    try:
+        import itimer
+    except:
+        itimer = None
 
 # sentinel value used by wait_for_read() and wait_for_write()
 USE_DEFAULT_TIMEOUT = -1
