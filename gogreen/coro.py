@@ -1144,7 +1144,7 @@ class Thread(object):
         '''trace
 
         Enable/Disable the recording of the threads execution stack during
-        the	most recent context switch.
+        the most recent context switch.
         '''
         #
         # to allow orthogonal components to enable/disable trace, the
@@ -1181,11 +1181,11 @@ class Thread(object):
 
     def status (self):
         print 'Thread status:'
-        print '	id:          ', self._thread_id
-        print '	alive:       ', self._alive
+        print ' id:          ', self._thread_id
+        print ' alive:       ', self._alive
         if self._profile:
-            print '	resume count:', self._resume_count
-            print '	execute time:', self._total_time
+            print ' resume count:', self._resume_count
+            print ' execute time:', self._total_time
 
     def set_socket_timeout(self, value):
         '''set_socket_timeout
