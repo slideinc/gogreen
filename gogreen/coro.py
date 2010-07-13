@@ -954,6 +954,7 @@ class Thread(object):
 
         self._alive  = 0
         self._status = 'dead'
+        self._locald.clear()
         del(self._co)
     #
     # logging.
