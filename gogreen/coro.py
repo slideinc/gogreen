@@ -824,8 +824,17 @@ class Thread(object):
     def child_list(self):
         return map(lambda t: _get_thread(t), self._children.keys())
 
-    def child_wait(self, timeout = None, exclude = set()):
-        while set(self._children.keys()) - exclude:
+    def child_wait(self, timeout = None, exclude = set(), children = None):
+        if children is None:
+            children = set(self._children.keys()) - exclude
+        else:
+            children = set(map(lambda i: i.thread_id(), children)) - exclude
+            
+        error = children - set(self._children.keys())
+        if error:
+            raise ValueError('Cannot wait for strangers', error)
+
+        while children:
             start  = time.time()
             result = self._cwaiter.wait(timeout)
             if result is None:
@@ -834,7 +843,9 @@ class Thread(object):
             if timeout is not None:
                 timeout -= time.time() - start
 
-        return self.child_count() - len(exclude)
+            children.intersection_update(set(self._children.keys()))
+
+        return len(children)
 
     def child_count(self):
         return len(self._children)
