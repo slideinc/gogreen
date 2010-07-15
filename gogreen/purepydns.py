@@ -220,7 +220,17 @@ def getnameinfo(sockaddr, flags):
 
     Currently only supports IPv4.
     """
-    host, port = sockaddr
+    try:
+        host, port = sockaddr
+    except (ValueError, TypeError):
+        if not isinstance(sockaddr, tuple):
+            # there's a stdlib test that's hyper-careful about refcounts
+            del sockaddr
+            raise TypeError('getnameinfo() argument 1 must be a tuple')
+        else:
+            # must be an ipv6 sockaddr, pretend we don't know how to resolve it
+            raise socket.gaierror(
+                    socket.EAI_NONAME, 'Name or service not known')
 
     if (flags & socket.NI_NAMEREQD) and (flags & socket.NI_NUMERICHOST):
         # Conflicting flags.  Punt.
