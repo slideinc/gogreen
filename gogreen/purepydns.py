@@ -79,10 +79,15 @@ class ResolverProxy(object):
             self._load_etc_hosts()
 
     def _load_etc_hosts(self):
-        fd = open('/etc/hosts', 'r')
-        contents = fd.read()
-        fd.close()
+        try:
+            fd = open('/etc/hosts', 'r')
+            contents = fd.read()
+            fd.close()
+        except EnvironmentError:
+            return
+
         contents = [line for line in contents.split('\n') if line and not line[0] == '#']
+
         for line in contents:
             line = line.replace('\t', ' ')
             parts = line.split(' ')
