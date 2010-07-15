@@ -75,7 +75,7 @@ class ResolverProxy(object):
         self._resolver = None
         self._filename = kwargs.get('filename', '/etc/resolv.conf')
         self._hosts = {}
-        if kwargs.pop('dev', False):
+        if kwargs.pop('etc_hosts', True):
             self._load_etc_hosts()
 
     def _load_etc_hosts(self):
