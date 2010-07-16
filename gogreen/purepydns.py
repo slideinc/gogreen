@@ -106,6 +106,9 @@ class ResolverProxy(object):
             self._resolver = dns.resolver.Resolver(filename = self._filename)
 
         query = args[0]
+        if query is None:
+            args = list(args)
+            query = args[0] = '0.0.0.0'
         if self._hosts and self._hosts.get(query):
             answer = FakeAnswer()
             record = FakeRecord()
@@ -276,7 +279,7 @@ def is_ipv4_addr(host):
     """
     try:
         d1, d2, d3, d4 = map(int, host.split('.'))
-    except ValueError:
+    except (ValueError, AttributeError):
         return False
 
     if 0 <= d1 <= 255 and 0 <= d2 <= 255 and 0 <= d3 <= 255 and 0 <= d4 <= 255:
