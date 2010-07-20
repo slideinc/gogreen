@@ -359,6 +359,13 @@ class coroutine_socket(object):
     def getsockname(self):
         return self.socket.getsockname()
 
+    def setblocking(self, val):
+        # the socket is always in non-blocking mode, though it will block a
+        # coroutine. lie here, since most code out there that does
+        # setblocking(0) doesn't need it as it uses select/poll/epoll regardless
+        return None
+
+
 
 SSL_WAIT_ERRORS = set([
     socket._ssl.SSL_ERROR_WANT_READ,
