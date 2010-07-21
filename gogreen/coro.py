@@ -308,16 +308,18 @@ class coroutine_socket(object):
         return self.socket.listen (queue_length)
 
     def accept (self):
+        while 1:
+            try:
+                self.wait_for_read()
+            except TimeoutError, e:
+                raise socket.timeout, 'timed out'
 
-        try:
-            self.wait_for_read()
-        except TimeoutError, e:
-            raise socket.timeout, 'timed out'
-        try:
-            conn, addr = self.socket.accept()
-        except socket.error, e:
-            conn, addr = self.socket.accept()
-        return self.__class__ (conn), addr
+            try:
+                conn, addr = self.socket.accept()
+                return self.__class__ (conn), addr
+            except socket.error, e:
+                if e[0] not in (errno.EAGAIN, errno.EWOULDBLOCK):
+                    raise
 
     def close (self):
         if not self._closed:
