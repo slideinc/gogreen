@@ -1784,8 +1784,7 @@ def _exit_event_loop():
     if stop and not (stop > time.time()):
         return True
     else:
-        #XXX: refactor me to not use len(the_event_list)
-        return not (len(the_event_list) + len(the_event_poll) + len(pending))
+        return not the_event_list and not the_event_poll and not pending
 
 
 def _real_event_loop(max_timeout):
