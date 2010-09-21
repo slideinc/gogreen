@@ -272,7 +272,6 @@ class BTree(object):
         test = last and self._test_right or self._test_left
         path = self._find_path(key, last)
         node, index = path.pop()
-        print index
 
         if test(node.keys, index, key):
             if last:
