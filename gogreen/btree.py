@@ -371,10 +371,27 @@ class BTree(object):
         '''
         left, right = self._root.split(key)
 
-        #XXX: do the healing pass down the cut edge of right
+        # first eliminate redundant roots
+        while self._root.BRANCH and not self._root.keys:
+            self._root = self._root.children[0]
+
+        # next traverse down, rebalancing as we go
+        if self._root.BRANCH:
+            path = [(self._root, 0)]
+            node = self._root.children[0]
+
+            while node.BRANCH:
+                # XXX: nodes need a grow_by so we don't do this 1-by-1
+                while len(node.keys) < node.order // 2:
+                    node.grow(path[:])
+                path.append((node, 0))
+                node = node.children[0]
+
+            while len(node.keys) < node.order // 2:
+                node.grow(path[:])
 
         throwaway = object.__new__(type(self))
-        throwaway._root = left
+        throwaway._root = left # just using you for your iteritems
         return throwaway.iteritems()
 
     @classmethod
