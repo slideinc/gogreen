@@ -82,7 +82,7 @@ class BTreeNode(object):
         if len(parent.keys) > parent.order:
             parent.shrink(path)
 
-    def grow(self, path):
+    def grow(self, path, count=1):
         parent, parent_index = path.pop()
         minimum = self.order // 2
         left, right = None, None
@@ -90,15 +90,27 @@ class BTreeNode(object):
         # first try to borrow from the right sibling
         if parent_index + 1 < len(parent.children):
             right = parent.children[parent_index + 1]
-            if len(right.keys) > minimum:
-                parent.neighbor_pass_left(right, parent_index + 1)
+            if len(right.keys) - count >= minimum:
+                parent.neighbor_pass_left(right, parent_index + 1, count)
                 return
 
-        # fall back to borrowing from the left sibling
+        # then try borrowing from the left sibling
         if parent_index:
             left = parent.children[parent_index - 1]
-            if len(left.keys) > minimum:
-                parent.neighbor_pass_right(left, parent_index - 1)
+            if len(left.keys) - count >= minimum:
+                parent.neighbor_pass_right(left, parent_index - 1, count)
+                return
+
+        # see if we can borrow a few from both
+        if count > 1 and left and right:
+            lspares = len(left.keys) - minimum
+            rspares = len(right.keys) - minimum
+            if lspares + rspares >= count:
+                # distribute the pulling evenly between the two neighbors
+                even_remaining = lspares + rspares - count
+                from_right = rspares - (even_remaining // 2)
+                parent.neighbor_pass_right(left, parent_index - 1, from_left)
+                parent.neighbor_pass_left(right, parent_index + 1, from_right)
                 return
 
         # consolidate with a sibling -- try left first
@@ -142,25 +154,43 @@ class BTreeBranchNode(BTreeNode):
         self.values = values
         self.children = children
 
-    def neighbor_pass_right(self, child, child_index):
+    def neighbor_pass_right(self, child, child_index, count=1):
         separator_index = child_index
         target = self.children[child_index + 1]
-        target.keys.insert(0, self.keys[separator_index])
-        target.values.insert(0, self.values[separator_index])
-        self.keys[separator_index] = child.keys.pop()
-        self.values[separator_index] = child.values.pop()
-        if child.BRANCH:
-            target.children.insert(0, child.children.pop())
+        index = len(child.keys) - count
 
-    def neighbor_pass_left(self, child, child_index):
+        target.keys[0:0] = (child.keys[index + 1:] +
+                [self.keys[separator_index]])
+        self.keys[separator_index] = child.keys[index]
+        child.keys[index:] = []
+
+        target.values[0:0] = (child.values[index + 1:] +
+                [self.values[separator_index]])
+        self.values[separator_index] = child.values[index]
+        child.values[index:] = []
+
+        if child.BRANCH:
+            target.children[0:0] = child.children[-count:]
+            child.children[-count:] = []
+
+    def neighbor_pass_left(self, child, child_index, count=1):
         separator_index = child_index - 1
         target = self.children[child_index - 1]
-        target.keys.append(self.keys[separator_index])
-        target.values.append(self.values[separator_index])
-        self.keys[separator_index] = child.keys.pop(0)
-        self.values[separator_index] = child.values.pop(0)
+
+        target.keys.extend([self.keys[separator_index]] +
+                child.keys[:count - 1])
+        self.keys[separator_index] = child.keys[count - 1]
+        child.keys[:count] = []
+
+        target.values.extend([self.values[separator_index]] +
+                child.values[:count - 1])
+        self.values[separator_index] = child.values[count - 1]
+        child.values[:count] = []
+
         if child.BRANCH:
-            target.children.append(child.children.pop(0))
+            index = len(child.keys) + 1
+            target.children.extend(child.children[:count])
+            child.children[:count] = []
 
     def remove(self, index, path):
         minimum = self.order // 2
@@ -187,7 +217,7 @@ class BTreeBranchNode(BTreeNode):
         path.extend(to_leaf)
         self.keys[index] = descendent.keys[-1]
         self.values[index] = descendent.values[-1]
-        descendent.remove(len(descendent.children) - 1, path)
+        descendent.remove(len(descendent.keys) - 1, path)
 
     def split(self, key):
         index = bisect.bisect_right(self.keys, key)
@@ -329,7 +359,7 @@ class BTree(object):
         while node.BRANCH:
             node = node.children[index]
             index = cut(node.keys, key)
-            path.append(node, index)
+            path.append((node, index))
 
         return path
 
@@ -416,13 +446,15 @@ class BTree(object):
 
             while node.BRANCH:
                 # XXX: nodes need a grow_by so we don't do this 1-by-1
-                while len(node.keys) < node.order // 2:
-                    node.grow(path[:])
+                short_by = (node.order // 2) - len(node.keys)
+                if short_by > 0:
+                    node.grow(path[:], short_by + 1)
                 path.append((node, 0))
                 node = node.children[0]
 
-            while len(node.keys) < node.order // 2:
-                node.grow(path[:])
+            short_by = (node.order // 2) - len(node.keys)
+            if short_by > 0:
+                node.grow(path[:], short_by + 1)
 
         throwaway = object.__new__(type(self))
         throwaway._root = left # just using you for your iteritems
