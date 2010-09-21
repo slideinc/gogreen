@@ -714,6 +714,7 @@ def preemptive_locked():
     return function
 
 _current_threads = {}
+_current_threads_by_id = {}
 
 class Thread(object):
     _thread_count = 0
@@ -937,6 +938,7 @@ class Thread(object):
             self._status  = 'alive'
             self._joinees = []
             _current_threads[self._co] = self
+            _current_threads_by_id[self.thread_id()] = self
 
             parent = self.parent()
             if parent is not None:
@@ -972,6 +974,7 @@ class Thread(object):
 
         if _current_threads.has_key(self._co):
             del(_current_threads[self._co])
+        _current_threads_by_id.pop(self.thread_id())
 
         self._alive  = 0
         self._status = 'dead'
@@ -1409,7 +1412,7 @@ def thread_list():
     return _current_threads.values()
 
 def _get_thread(id):
-    return (filter(lambda x: x._thread_id == id, thread_list()) + [None])[0]
+    return _current_threads_by_id.get(id, None)
 
 def gt(tid = 1):
     return _get_thread(tid)
