@@ -1,7 +1,6 @@
 # -*- Mode: Python; tab-width: 4 -*-
 
-# Copyright (c) 1999, 2000 by eGroups, Inc.
-# Copyright (c) 2005-2010 Slide, Inc.
+# Copyright (c) 2010 Slide, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -247,8 +246,15 @@ class BTree(object):
         self.order = order
         self._root = self.LEAF_NODE(self, [], [])
 
+    @property
+    def first(self):
+        node = self._root
+        while node.BRANCH:
+            node = node.children[0]
+        return node.keys[0], node.values[0]
+
     def get(self, key, default=None):
-        path = self._find_path(key)
+        path = self.find_path(key)
         node, index = path[-1]
         if node.keys[index] == key:
             return node.values[index]
@@ -257,7 +263,7 @@ class BTree(object):
     __getitem__ = get
 
     def insert(self, key, value, after=False):
-        path = self._find_path_to_leaf(key, after)
+        path = self.find_path_to_leaf(key, after)
         node, index = path.pop()
 
         node.keys.insert(index, key)
@@ -270,7 +276,7 @@ class BTree(object):
 
     def remove(self, key, last=True):
         test = last and self._test_right or self._test_left
-        path = self._find_path(key, last)
+        path = self.find_path(key, last)
         node, index = path.pop()
 
         if test(node.keys, index, key):
@@ -278,7 +284,7 @@ class BTree(object):
                 index -= 1
             node.remove(index, path)
         else:
-            raise ValueError("%r not in %s" % (item, self.__class__.__name__))
+            raise ValueError("%r not in %s" % (key, self.__class__.__name__))
 
     __delitem__ = remove
 
@@ -299,7 +305,7 @@ class BTree(object):
     def _test_left(self, keys, index, key):
         return index < len(keys) and keys[index] == key
 
-    def _find_path(self, key, after=False):
+    def find_path(self, key, after=False):
         cut = after and bisect.bisect_right or bisect.bisect_left
         test = after and self._test_right or self._test_left
 
@@ -314,10 +320,10 @@ class BTree(object):
 
         return path
 
-    def _find_path_to_leaf(self, key, after=False):
+    def find_path_to_leaf(self, key, after=False):
         cut = after and bisect.bisect_right or bisect.bisect_left
 
-        path = self._find_path(key, after)
+        path = self.find_path(key, after)
         node, index = path[-1]
 
         while node.BRANCH:
@@ -327,22 +333,23 @@ class BTree(object):
 
         return path
 
-    def iteritems(self):
-        def recurse(node):
-            if node.BRANCH:
-                for child, key, value in itertools.izip(
-                        node.children, node.keys, node.values):
-                    for pair in recurse(child):
-                        yield pair
-                    yield key, value
-                for pair in recurse(node.children[-1]):
-                    yield pair
-            else:
-                for pair in itertools.izip(node.keys, node.values):
+    def _iter_recurse(self, node):
+        if node.BRANCH:
+            for child, key, value in itertools.izip(
+                    node.children, node.keys, node.values):
+                for pair in self._iter_recurse(child):
                     yield pair
 
-        for pair in recurse(self._root):
-            yield pair
+                yield key, value
+
+            for pair in self._iter_recurse(node.children[-1]):
+                yield pair
+        else:
+            for pair in itertools.izip(node.keys, node.values):
+                yield pair
+
+    def iteritems(self):
+        return self._iter_recurse(self._root)
 
     def iterkeys(self):
         return itertools.imap(operator.itemgetter(0), self.iteritems())
@@ -360,6 +367,34 @@ class BTree(object):
         return [pair[1] for pair in self.iteritems()]
 
     __iter__ = iterkeys
+
+    def _partial_iter_recurse(self, node, path):
+        skip = path[0][1]
+        if node.BRANCH:
+            if len(path) > 1:
+                for pair in self._partial_iter_recurse(
+                        node.children[skip], path[1:]):
+                    yield pair
+
+            if skip < len(node.keys):
+                yield node.keys[skip], node.values[skip]
+
+            for child, key, value in zip(
+                    node.children, node.keys, node.values)[skip + 1:]:
+                for pair in self._iter_recurse(child):
+                    yield pair
+
+                yield key, value
+
+            if skip + 1 < len(node.children):
+                for pair in self._iter_recurse(node.children[-1]):
+                    yield pair
+        else:
+            for pair in zip(node.keys, node.values)[skip:]:
+                yield pair
+
+    def iterfrom(self, path):
+        return self._partial_iter_recurse(self._root, path)
 
     def pull_prefix(self, key):
         '''

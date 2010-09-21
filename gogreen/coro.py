@@ -74,6 +74,10 @@ except NameError:
 
 # sentinel value used by wait_for_read() and wait_for_write()
 USE_DEFAULT_TIMEOUT = -1
+
+# node size for the event_list btree
+TIMED_BRANCHING_ORDER = 50
+
 #
 # poll masks.
 DEFAULT_MASK = select.POLLIN|select.POLLOUT|select.POLLPRI
@@ -88,6 +92,9 @@ try:
     from greenlet import greenlet
 except ImportError:
     from py.magic import greenlet
+
+import btree
+
 #
 # save real socket incase we emulate.
 #
@@ -1595,54 +1602,37 @@ def preemptive_disable():
 class event_list(object):
 
     def __init__ (self):
-        self.events = []
+        self.events = btree.BTree(TIMED_BRANCHING_ORDER)
 
     def __nonzero__ (self):
-        return len(self.events)
+        # no need to traverse the whole thing.
+        # if anything has any data then the root will
+        return bool(self.events._root.keys)
 
     def __len__ (self):
-        return len(self.events)
+        return len(list(self.events))
 
     def insert_event (self, co, when, args):
         triple = (when, co, args)
-        bisect.insort (self.events, triple)
-
+        self.events.insert((when, co.thread_id()), (co, args))
         return triple
 
     def remove_event (self, triple):
-        offset = bisect.bisect_left(self.events, triple)
-        #
-        # If the triple exists in the event list remove it. The consumer
-        # will attempt to remove an event that was removed by run_scheduled
-        # during scheduling.
-        #
         try:
-            if self.events[offset] == triple:
-                del(self.events[offset])
-        except (ValueError, IndexError):
+            self.events.remove((triple[0], triple[1].thread_id()))
+        except ValueError:
             pass
 
     def run_scheduled (self):
-        now = time.time()
-        i = j = 0
-        while i < len(self.events):
-            when, thread, args = self.events[i]
-            if now >= when:
-                schedule (thread, args)
-                j = i + 1
-            else:
-                break
-            i = i + 1
-
-        del(self.events[:j])
+        runnable = self.events.pull_prefix((time.time(), Thread._thread_count))
+        for (time_in, thread_id), (thread, args) in runnable:
+            schedule(thread, args)
         return None
 
     def next_event (self, max_timeout=30.0):
-        if len(self.events):
-            now = time.time()
-            when, thread, args = self.events[0]
-            max_timeout = min(max_timeout, max(when-now, 0))
-
+        if self:
+            next_time = self.events.first[0][0]
+            return max(0, min(max_timeout, next_time - time.time()))
         return max_timeout
 
 class _event_poll(object):
@@ -1704,6 +1694,7 @@ class event_poll(_event_poll):
         self._poll.unregister(fd)
 
     def wait(self, timeout):
+        timeout = timeout is None and -1 or float(timeout)
         return self._poll.poll(timeout)
 
 if hasattr(select, "epoll"):
@@ -1722,7 +1713,7 @@ if hasattr(select, "epoll"):
             self._epoll.unregister(fd)
 
         def wait(self, timeout=None):
-            timeout = timeout or -1
+            timeout = timeout is None and -1 or float(timeout)
             return self._epoll.poll(timeout, self._size)
 
 else:
@@ -1793,6 +1784,7 @@ def _exit_event_loop():
     if stop and not (stop > time.time()):
         return True
     else:
+        #XXX: refactor me to not use len(the_event_list)
         return not (len(the_event_list) + len(the_event_poll) + len(pending))
 
 
