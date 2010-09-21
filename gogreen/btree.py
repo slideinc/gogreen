@@ -81,7 +81,7 @@ class BTreeNode(object):
         parent.values.insert(parent_index, median[1])
         parent.children.insert(parent_index + 1, sibling)
         if len(parent.keys) > parent.order:
-            parent.shrink()
+            parent.shrink(path)
 
     def grow(self, path):
         parent, parent_index = path.pop()
@@ -190,6 +190,28 @@ class BTreeBranchNode(BTreeNode):
         self.values[index] = descendent.values[-1]
         descendent.remove(len(descendent.children) - 1, path)
 
+    def split(self, key):
+        index = bisect.bisect_right(self.keys, key)
+        child = self.children[index]
+
+        left = type(self)(
+                self.tree, self.keys[:index], self.values[:index],
+                self.children[:index])
+
+        self.keys = self.keys[index:]
+        self.values = self.values[index:]
+        self.children = self.children[index + 1:]
+
+        # right here both left and self has the same number of children as
+        # keys and values -- but the relevant child hasn't been split yet,
+        # so we'll add the two resultant children to the respective child list
+
+        left_child, right_child = child.split(key)
+        left.children.append(left_child)
+        self.children.insert(0, right_child)
+
+        return left, self
+
 
 class BTreeLeafNode(BTreeNode):
     BRANCH = False
@@ -205,6 +227,16 @@ class BTreeLeafNode(BTreeNode):
         self.values.pop(index)
         if path and len(self.keys) < self.order // 2:
             self.grow(path)
+
+    def split(self, key):
+        index = bisect.bisect_right(self.keys, key)
+
+        left = type(self)(self.tree, self.keys[:index], self.values[:index])
+
+        self.keys = self.keys[index:]
+        self.values = self.values[index:]
+
+        return left, self
 
 
 class BTree(object):
@@ -330,14 +362,20 @@ class BTree(object):
 
     __iter__ = iterkeys
 
-    #def pull_prefix(self, key):
-    #    '''
-    #    get and remove the prefix section of the btree up to and
-    #    including all values for `key`, and return it as a list
+    def pull_prefix(self, key):
+        '''
+        get and remove the prefix section of the btree up to and
+        including all values for `key`, and return it as a list
 
-    #    http://www.chiark.greenend.org.uk/~sgtatham/tweak/btree.html#S6.2
-    #    '''
-    #    self._root.split(key, None)
+        http://www.chiark.greenend.org.uk/~sgtatham/tweak/btree.html#S6.2
+        '''
+        left, right = self._root.split(key)
+
+        #XXX: do the healing pass down the cut edge of right
+
+        throwaway = object.__new__(type(self))
+        throwaway._root = left
+        return throwaway.iteritems()
 
     @classmethod
     def bulkload(cls, keys, values, order):
