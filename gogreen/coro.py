@@ -1041,12 +1041,14 @@ class Thread(object):
         # add self to timeout event list
         #
         if timeout is not None:
-            if type(timeout) == type(0.0):
-                now = time.time()
+            if timeout:
+                if type(timeout) == type(0.0):
+                    now = time.time()
+                else:
+                    now = int(time.time())
+                triple = the_event_list.insert_event(self, now + timeout, arg)
             else:
-                now = int(time.time())
-
-            triple = the_event_list.insert_event(self, now + timeout, arg)
+                triple = the_event_list.insert_paused(self, arg)
         #
         # in debug mode record stack
         #
@@ -1606,11 +1608,12 @@ class event_list(object):
 
     def __init__ (self):
         self.events = btree.BTree(TIMED_BRANCHING_ORDER)
+        self.paused = set()
 
     def __nonzero__ (self):
         # no need to traverse the whole thing.
         # if anything has any data then the root will
-        return bool(self.events._root.keys)
+        return bool(self.paused) or bool(self.events._root.keys)
 
     def __len__ (self):
         return len(list(self.events))
@@ -1620,22 +1623,34 @@ class event_list(object):
         self.events.insert((when, co.thread_id()), (co, args))
         return triple
 
+    def insert_paused(self, co, args):
+        self.paused.add((co, args))
+        return (None, co, args)
+
     def remove_event (self, triple):
         try:
-            self.events.remove((triple[0], triple[1].thread_id()))
+            if triple[0] is None:
+                self.paused.discard((triple[1], triple[2]))
+            else:
+                self.events.remove((triple[0], triple[1].thread_id()))
         except ValueError:
             pass
 
     def run_scheduled (self):
-        runnable = self.events.pull_prefix((time.time(), Thread._thread_count))
-        for (time_in, thread_id), (thread, args) in runnable:
+        paused = self.paused
+        self.paused = set()
+        timed_in = self.events.pull_prefix((time.time(), Thread._thread_count))
+        for (time_in, thread_id), (thread, args) in timed_in:
+            schedule(thread, args)
+        for thread, args in paused:
             schedule(thread, args)
         return None
 
     def next_event (self, max_timeout=30.0):
+        now = time.time()
         if self:
-            next_time = self.events.first[0][0]
-            return max(0, min(max_timeout, next_time - time.time()))
+            next_time = (self.events.first[0] or (now,))[0]
+            return max(0, min(max_timeout, next_time - now))
         return max_timeout
 
 class _event_poll(object):
