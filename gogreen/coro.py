@@ -1605,7 +1605,6 @@ def preemptive_disable():
 
 
 class event_list(object):
-
     def __init__ (self):
         self.events = btree.BTree(TIMED_BRANCHING_ORDER)
         self.paused = set()
@@ -1614,9 +1613,6 @@ class event_list(object):
         # no need to traverse the whole thing.
         # if anything has any data then the root will
         return bool(self.paused) or bool(self.events._root.keys)
-
-    def __len__ (self):
-        return len(list(self.events))
 
     def insert_event (self, co, when, args):
         triple = (when, co, args)
