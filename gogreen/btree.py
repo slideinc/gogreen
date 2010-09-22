@@ -285,15 +285,6 @@ class BTree(object):
             return None, None
         return node.keys[0], node.values[0]
 
-    def get(self, key, default=None):
-        path = self.find_path(key)
-        node, index = path[-1]
-        if node.keys[index] == key:
-            return node.values[index]
-        return default
-
-    __getitem__ = get
-
     def insert(self, key, value, after=False):
         path = self.find_path_to_leaf(key, after)
         node, index = path.pop()
@@ -303,8 +294,6 @@ class BTree(object):
 
         if len(node.keys) > self.order:
             node.shrink(path)
-
-    __setitem__ = insert
 
     def remove(self, key, last=True):
         test = last and self._test_right or self._test_left
@@ -317,8 +306,6 @@ class BTree(object):
             node.remove(index, path)
         else:
             raise ValueError("%r not in %s" % (key, self.__class__.__name__))
-
-    __delitem__ = remove
 
     def __repr__(self):
         def recurse(node, accum, depth):
@@ -383,51 +370,6 @@ class BTree(object):
     def iteritems(self):
         return self._iter_recurse(self._root)
 
-    def iterkeys(self):
-        return itertools.imap(operator.itemgetter(0), self.iteritems())
-
-    def itervalues(self):
-        return itertools.imap(operator.itemgetter(0), self.iteritems())
-
-    def items(self):
-        return list(self.iteritems())
-
-    def keys(self):
-        return [pair[0] for pair in self.iteritems()]
-
-    def values(self):
-        return [pair[1] for pair in self.iteritems()]
-
-    __iter__ = iterkeys
-
-    def _partial_iter_recurse(self, node, path):
-        skip = path[0][1]
-        if node.BRANCH:
-            if len(path) > 1:
-                for pair in self._partial_iter_recurse(
-                        node.children[skip], path[1:]):
-                    yield pair
-
-            if skip < len(node.keys):
-                yield node.keys[skip], node.values[skip]
-
-            for child, key, value in zip(
-                    node.children, node.keys, node.values)[skip + 1:]:
-                for pair in self._iter_recurse(child):
-                    yield pair
-
-                yield key, value
-
-            if skip + 1 < len(node.children):
-                for pair in self._iter_recurse(node.children[-1]):
-                    yield pair
-        else:
-            for pair in zip(node.keys, node.values)[skip:]:
-                yield pair
-
-    def iterfrom(self, path):
-        return self._partial_iter_recurse(self._root, path)
-
     def pull_prefix(self, key):
         '''
         get and remove the prefix section of the btree up to and
@@ -461,83 +403,3 @@ class BTree(object):
         throwaway = object.__new__(type(self))
         throwaway._root = left # just using you for your iteritems
         return throwaway.iteritems()
-
-    @classmethod
-    def bulkload(cls, keys, values, order):
-        tree = object.__new__(cls)
-        tree.order = order
-
-        minimum = order // 2
-        keygroups, valuegroups, separators = [[]], [[]], []
-
-        for key, value in itertools.izip(keys, values):
-            if len(keygroups[-1]) < order:
-                keygroups[-1].append(key)
-                valuegroups[-1].append(value)
-            else:
-                separators.append((key, value))
-                keygroups.append([])
-                valuegroups.append([])
-
-        if len(keygroups[-1]) < minimum and separators:
-            sep_key, sep_value = separators.pop()
-            last_two_keys = keygroups[-2] + [sep_key] + keygroups[-1]
-            last_two_values = valuegroups[-2] + [sep_value] + valuegroups[-1]
-            keygroups[-2] = last_two_keys[:minimum]
-            keygroups[-1] = last_two_keys[minimum + 1:]
-            valuegroups[-2] = last_two_values[:minimum]
-            valuegroups[-1] = last_two_values[minimum + 1:]
-            separators.append(
-                    (last_two_keys[minimum], last_two_values[minimum]))
-
-        last_generation = []
-        for keys, values in itertools.izip(keygroups, valuegroups):
-            last_generation.append(cls.LEAF_NODE(tree, keys, values))
-
-        if not separators:
-            tree._root = last_generation[0]
-            return tree
-
-        while len(separators) > order + 1:
-            pairs, separators = separators, []
-            last_keys, keys = keys, [[]]
-            last_values, values = values, [[]]
-
-            for key, value in pairs:
-                if len(keys[-1]) < order:
-                    keys[-1].append(key)
-                    values[-1].append(value)
-                else:
-                    separators.append((key, value))
-                    keys.append([])
-                    values.append([])
-
-            if len(keys[-1]) < minimum and separators:
-                sep_key, sep_value = separators.pop()
-                last_two_keys = keys[-2] + [sep_key] + keys[-1]
-                last_two_values = values[-2] + [sep_value] + values[-1]
-                keys[-2] = last_two_keys[:minimum]
-                keys[-1] = last_two_keys[minimum + 1:]
-                values[-2] = last_two_values[:minimum]
-                values[-1] = last_two_values[minimum + 1:]
-                separators.append(
-                        (last_two_keys[minimum], last_two_values[minimum]))
-
-            offset = 0
-            for i, (key_group, value_group) in enumerate(
-                    itertools.izip(keys, values)):
-                children = last_generation[offset:offset + len(key_group) + 1]
-                keys[i] = cls.BRANCH_NODE(
-                        tree, key_group, value_group, children)
-                offset += len(key_group) + 1
-
-            last_generation = keys
-
-        root = cls.BRANCH_NODE(
-                tree,
-                [x[0] for x in separators],
-                [x[1] for x in separators],
-                last_generation)
-
-        tree._root = root
-        return tree
