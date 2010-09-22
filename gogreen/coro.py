@@ -1610,8 +1610,8 @@ class event_list(object):
         self.paused = set()
 
     def __nonzero__ (self):
-        # no need to traverse the whole thing.
-        # if anything has any data then the root will
+        # no need to traverse the whole btree,
+        # if it has any data at all then the root will have something
         return bool(self.paused) or bool(self.events._root.keys)
 
     def insert_event (self, co, when, args):
