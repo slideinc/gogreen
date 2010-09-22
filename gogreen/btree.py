@@ -281,6 +281,8 @@ class BTree(object):
         node = self._root
         while node.BRANCH:
             node = node.children[0]
+        if not node.keys:
+            return None, None
         return node.keys[0], node.values[0]
 
     def get(self, key, default=None):
