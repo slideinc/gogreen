@@ -389,7 +389,6 @@ class BTree(object):
             node = self._root.children[0]
 
             while node.BRANCH:
-                # XXX: nodes need a grow_by so we don't do this 1-by-1
                 short_by = (node.order // 2) - len(node.keys)
                 if short_by > 0:
                     node.grow(path[:], short_by + 1)
