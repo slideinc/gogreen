@@ -30,16 +30,13 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import pdb
 import traceback
-import bisect
 import os
 import select
 import string
 import signal
 import sys
 import time
-import random as whrandom
 import logging
 import errno
 import weakref
