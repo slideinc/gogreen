@@ -406,6 +406,8 @@ class BTree(object):
         for values in valuegroups:
             last_generation.append(cls.LEAF_NODE(tree, values))
 
+        tree._first = last_generation[0]
+
         if not separators:
             tree._root = last_generation[0]
             return tree
