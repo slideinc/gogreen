@@ -40,46 +40,44 @@ class BTreeNode(object):
         if path:
             parent, parent_index = path.pop()
 
-            # first, try to pass a (key, value) left
+            # first, try to pass a value left
             if parent_index:
                 left = parent.children[parent_index - 1]
-                if len(left.keys) < left.order:
+                if len(left.values) < left.order:
                     parent.neighbor_pass_left(self, parent_index)
                     return
 
             # second, try to pass one right
             if parent_index + 1 < len(parent.children):
                 right = parent.children[parent_index + 1]
-                if len(right.keys) < right.order:
+                if len(right.values) < right.order:
                     parent.neighbor_pass_right(self, parent_index)
                     return
 
         # finally, split the current node, then shrink the parent if we must
-        center = len(self.keys) // 2
-        median = self.keys[center], self.values[center]
+        center = len(self.values) // 2
+        median = self.values[center]
 
         # create a sibling node with the second half of our data
-        args = [self.tree, self.keys[center + 1:], self.values[center + 1:]]
+        args = [self.tree, self.values[center + 1:]]
         if self.BRANCH:
             args.append(self.children[center + 1:])
         sibling = type(self)(*args)
 
         # cut our data down to the first half
-        self.keys = self.keys[:center]
         self.values = self.values[:center]
         if self.BRANCH:
             self.children = self.children[:center + 1]
 
         if not parent:
-            parent = self.tree.BRANCH_NODE(self.tree, [], [], [self])
+            parent = self.tree.BRANCH_NODE(self.tree, [], [self])
             parent_index = 0
             self.tree._root = parent
 
         # pass the median element up to the parent
-        parent.keys.insert(parent_index, median[0])
-        parent.values.insert(parent_index, median[1])
+        parent.values.insert(parent_index, median)
         parent.children.insert(parent_index + 1, sibling)
-        if len(parent.keys) > parent.order:
+        if len(parent.values) > parent.order:
             parent.shrink(path)
 
     def grow(self, path, count=1):
@@ -90,21 +88,21 @@ class BTreeNode(object):
         # first try to borrow from the right sibling
         if parent_index + 1 < len(parent.children):
             right = parent.children[parent_index + 1]
-            if len(right.keys) - count >= minimum:
+            if len(right.values) - count >= minimum:
                 parent.neighbor_pass_left(right, parent_index + 1, count)
                 return
 
         # then try borrowing from the left sibling
         if parent_index:
             left = parent.children[parent_index - 1]
-            if len(left.keys) - count >= minimum:
+            if len(left.values) - count >= minimum:
                 parent.neighbor_pass_right(left, parent_index - 1, count)
                 return
 
         # see if we can borrow a few from both
         if count > 1 and left and right:
-            lspares = len(left.keys) - minimum
-            rspares = len(right.keys) - minimum
+            lspares = len(left.values) - minimum
+            rspares = len(right.values) - minimum
             if lspares + rspares >= count:
                 # distribute the pulling evenly between the two neighbors
                 even_remaining = lspares + rspares - count
@@ -115,54 +113,45 @@ class BTreeNode(object):
 
         # consolidate with a sibling -- try left first
         if left:
-            left.keys.append(parent.keys.pop(parent_index - 1))
             left.values.append(parent.values.pop(parent_index - 1))
-            left.keys.extend(self.keys)
             left.values.extend(self.values)
             if self.BRANCH:
                 left.children.extend(self.children)
             parent.children.pop(parent_index)
         else:
-            self.keys.append(parent.keys.pop(parent_index))
             self.values.append(parent.values.pop(parent_index))
-            self.keys.extend(right.keys)
             self.values.extend(right.values)
             if self.BRANCH:
                 self.children.extend(right.children)
             parent.children.pop(parent_index + 1)
 
-        if len(parent.keys) < minimum:
+        if len(parent.values) < minimum:
             if path:
                 # parent is not the root
                 parent.grow(path)
-            elif not parent.keys:
+            elif not parent.values:
                 # parent is root and is now empty
                 self.tree._root = left or self
 
     def __repr__(self):
         name = self.BRANCH and "BRANCH" or "LEAF"
-        return "<%s %s>" % (name, ", ".join(map(str, self.keys)))
+        return "<%s %s>" % (name, ", ".join(map(str, self.values)))
 
 
 class BTreeBranchNode(BTreeNode):
     BRANCH = True
+    __slots__ = ["tree", "order", "values", "children"]
 
-    def __init__(self, tree, keys, values, children):
+    def __init__(self, tree, values, children):
         self.tree = tree
         self.order = tree.order
-        self.keys = keys
         self.values = values
         self.children = children
 
     def neighbor_pass_right(self, child, child_index, count=1):
         separator_index = child_index
         target = self.children[child_index + 1]
-        index = len(child.keys) - count
-
-        target.keys[0:0] = (child.keys[index + 1:] +
-                [self.keys[separator_index]])
-        self.keys[separator_index] = child.keys[index]
-        child.keys[index:] = []
+        index = len(child.values) - count
 
         target.values[0:0] = (child.values[index + 1:] +
                 [self.values[separator_index]])
@@ -177,18 +166,13 @@ class BTreeBranchNode(BTreeNode):
         separator_index = child_index - 1
         target = self.children[child_index - 1]
 
-        target.keys.extend([self.keys[separator_index]] +
-                child.keys[:count - 1])
-        self.keys[separator_index] = child.keys[count - 1]
-        child.keys[:count] = []
-
         target.values.extend([self.values[separator_index]] +
                 child.values[:count - 1])
         self.values[separator_index] = child.values[count - 1]
         child.values[:count] = []
 
         if child.BRANCH:
-            index = len(child.keys) + 1
+            index = len(child.values) + 1
             target.children.extend(child.children[:count])
             child.children[:count] = []
 
@@ -201,9 +185,8 @@ class BTreeBranchNode(BTreeNode):
         while descendent.BRANCH:
             to_leaf.append((descendent, 0))
             descendent = descendent.children[0]
-        if len(descendent.keys) > minimum:
+        if len(descendent.values) > minimum:
             path.extend(to_leaf)
-            self.keys[index] = descendent.keys[0]
             self.values[index] = descendent.values[0]
             descendent.remove(0, path)
             return
@@ -215,27 +198,23 @@ class BTreeBranchNode(BTreeNode):
             to_leaf.append((descendent, len(descendent.children) - 1))
             descendent = descendent.children[-1]
         path.extend(to_leaf)
-        self.keys[index] = descendent.keys[-1]
         self.values[index] = descendent.values[-1]
-        descendent.remove(len(descendent.keys) - 1, path)
+        descendent.remove(len(descendent.values) - 1, path)
 
-    def split(self, key):
-        index = bisect.bisect_right(self.keys, key)
+    def split(self, value):
+        index = bisect.bisect_right(self.values, value)
         child = self.children[index]
 
-        left = type(self)(
-                self.tree, self.keys[:index], self.values[:index],
-                self.children[:index])
+        left = type(self)(self.tree, self.values[:index], self.children[:index])
 
-        self.keys = self.keys[index:]
         self.values = self.values[index:]
         self.children = self.children[index + 1:]
 
         # right here both left and self has the same number of children as
-        # keys and values -- but the relevant child hasn't been split yet,
-        # so we'll add the two resultant children to the respective child list
+        # values -- but the relevant child hasn't been split yet, so we'll add
+        # the two resultant children to the respective child list
 
-        left_child, right_child = child.split(key)
+        left_child, right_child = child.split(value)
         left.children.append(left_child)
         self.children.insert(0, right_child)
 
@@ -244,26 +223,26 @@ class BTreeBranchNode(BTreeNode):
 
 class BTreeLeafNode(BTreeNode):
     BRANCH = False
+    __slots__ = ["tree", "order", "values"]
 
-    def __init__(self, tree, keys, values):
+    def __init__(self, tree, values):
         self.tree = tree
         self.order = tree.order
-        self.keys = keys
         self.values = values
 
     def remove(self, index, path):
-        self.keys.pop(index)
         self.values.pop(index)
-        if path and len(self.keys) < self.order // 2:
+        if path and len(self.values) < self.order // 2:
             self.grow(path)
 
-    def split(self, key):
-        index = bisect.bisect_right(self.keys, key)
+    def split(self, value):
+        index = bisect.bisect_right(self.values, value)
 
-        left = type(self)(self.tree, self.keys[:index], self.values[:index])
+        left = type(self)(self.tree, self.values[:index])
 
-        self.keys = self.keys[index:]
         self.values = self.values[index:]
+
+        self.tree._first = self
 
         return left, self
 
@@ -274,38 +253,37 @@ class BTree(object):
 
     def __init__(self, order):
         self.order = order
-        self._root = self.LEAF_NODE(self, [], [])
+        self._root = self._first = self.LEAF_NODE(self, [])
+
+    def __nonzero__(self):
+        return bool(self._root.values)
 
     @property
     def first(self):
-        node = self._root
-        while node.BRANCH:
-            node = node.children[0]
-        if not node.keys:
-            return None, None
-        return node.keys[0], node.values[0]
+        if not self:
+            return None
+        return self._first.values[0]
 
-    def insert(self, key, value, after=False):
-        path = self.find_path_to_leaf(key, after)
+    def insert(self, value, after=False):
+        path = self.find_path_to_leaf(value, after)
         node, index = path.pop()
 
-        node.keys.insert(index, key)
         node.values.insert(index, value)
 
-        if len(node.keys) > self.order:
+        if len(node.values) > self.order:
             node.shrink(path)
 
-    def remove(self, key, last=True):
+    def remove(self, value, last=True):
         test = last and self._test_right or self._test_left
-        path = self.find_path(key, last)
+        path = self.find_path(value, last)
         node, index = path.pop()
 
-        if test(node.keys, index, key):
+        if test(node.values, index, value):
             if last:
                 index -= 1
             node.remove(index, path)
         else:
-            raise ValueError("%r not in %s" % (key, self.__class__.__name__))
+            raise ValueError("%r not in %s" % (value, self.__class__.__name__))
 
     def __repr__(self):
         def recurse(node, accum, depth):
@@ -318,69 +296,68 @@ class BTree(object):
         recurse(self._root, accum, 0)
         return "\n".join(accum)
 
-    def _test_right(self, keys, index, key):
-        return index and keys[index - 1] == key
+    def _test_right(self, values, index, value):
+        return index and values[index - 1] == value
 
-    def _test_left(self, keys, index, key):
-        return index < len(keys) and keys[index] == key
+    def _test_left(self, values, index, value):
+        return index < len(values) and values[index] == value
 
-    def find_path(self, key, after=False):
+    def find_path(self, value, after=False):
         cut = after and bisect.bisect_right or bisect.bisect_left
         test = after and self._test_right or self._test_left
 
         path, node = [], self._root
-        index = cut(node.keys, key)
+        index = cut(node.values, value)
         path.append((node, index))
 
-        while node.BRANCH and not test(node.keys, index, key):
+        while node.BRANCH and not test(node.values, index, value):
             node = node.children[index]
-            index = cut(node.keys, key)
+            index = cut(node.values, value)
             path.append((node, index))
 
         return path
 
-    def find_path_to_leaf(self, key, after=False):
+    def find_path_to_leaf(self, value, after=False):
         cut = after and bisect.bisect_right or bisect.bisect_left
 
-        path = self.find_path(key, after)
+        path = self.find_path(value, after)
         node, index = path[-1]
 
         while node.BRANCH:
             node = node.children[index]
-            index = cut(node.keys, key)
+            index = cut(node.values, value)
             path.append((node, index))
 
         return path
 
     def _iter_recurse(self, node):
         if node.BRANCH:
-            for child, key, value in itertools.izip(
-                    node.children, node.keys, node.values):
-                for pair in self._iter_recurse(child):
-                    yield pair
+            for child, value in itertools.izip(node.children, node.values):
+                for ancestor_value in self._iter_recurse(child):
+                    yield ancestor_value
 
-                yield key, value
+                yield value
 
-            for pair in self._iter_recurse(node.children[-1]):
-                yield pair
+            for value in self._iter_recurse(node.children[-1]):
+                yield value
         else:
-            for pair in itertools.izip(node.keys, node.values):
-                yield pair
+            for value in node.values:
+                yield value
 
-    def iteritems(self):
+    def __iter__(self):
         return self._iter_recurse(self._root)
 
-    def pull_prefix(self, key):
+    def pull_prefix(self, value):
         '''
         get and remove the prefix section of the btree up to and
-        including all values for `key`, and return it as a list
+        including all values for `value`, and return it as a list
 
         http://www.chiark.greenend.org.uk/~sgtatham/tweak/btree.html#S6.2
         '''
-        left, right = self._root.split(key)
+        left, right = self._root.split(value)
 
         # first eliminate redundant roots
-        while self._root.BRANCH and not self._root.keys:
+        while self._root.BRANCH and not self._root.values:
             self._root = self._root.children[0]
 
         # next traverse down, rebalancing as we go
@@ -389,16 +366,16 @@ class BTree(object):
             node = self._root.children[0]
 
             while node.BRANCH:
-                short_by = (node.order // 2) - len(node.keys)
+                short_by = (node.order // 2) - len(node.values)
                 if short_by > 0:
                     node.grow(path[:], short_by + 1)
                 path.append((node, 0))
                 node = node.children[0]
 
-            short_by = (node.order // 2) - len(node.keys)
+            short_by = (node.order // 2) - len(node.values)
             if short_by > 0:
                 node.grow(path[:], short_by + 1)
 
         throwaway = object.__new__(type(self))
-        throwaway._root = left # just using you for your iteritems
-        return throwaway.iteritems()
+        throwaway._root = left # just using you for your __iter__
+        return iter(throwaway)

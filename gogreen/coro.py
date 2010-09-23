@@ -1601,19 +1601,20 @@ def preemptive_disable():
     signal.signal(signal.SIGPROF, signal.SIG_IGN)
 
 
+_MAX = type('max', (), {'__cmp__': lambda self, x: 1})()
+
+
 class event_list(object):
     def __init__ (self):
         self.events = btree.BTree(TIMED_BRANCHING_ORDER)
         self.paused = set()
 
     def __nonzero__ (self):
-        # no need to traverse the whole btree,
-        # if it has any data at all then the root will have something
-        return bool(self.paused) or bool(self.events._root.keys)
+        return bool(self.paused or self.events)
 
     def insert_event (self, co, when, args):
         triple = (when, co, args)
-        self.events.insert((when, co.thread_id()), (co, args))
+        self.events.insert(triple)
         return triple
 
     def insert_paused(self, co, args):
@@ -1625,15 +1626,15 @@ class event_list(object):
             if triple[0] is None:
                 self.paused.discard((triple[1], triple[2]))
             else:
-                self.events.remove((triple[0], triple[1].thread_id()))
+                self.events.remove(triple)
         except ValueError:
             pass
 
     def run_scheduled (self):
         paused = self.paused
         self.paused = set()
-        timed_in = self.events.pull_prefix((time.time(), Thread._thread_count))
-        for (time_in, thread_id), (thread, args) in timed_in:
+        timed_in = self.events.pull_prefix((time.time(), _MAX))
+        for time_in, thread, args in timed_in:
             schedule(thread, args)
         for thread, args in paused:
             schedule(thread, args)
@@ -1642,7 +1643,7 @@ class event_list(object):
     def next_event (self, max_timeout=30.0):
         now = time.time()
         if self:
-            next_time = (self.events.first[0] or (now,))[0]
+            next_time = (self.events.first or (now,))[0]
             return max(0, min(max_timeout, next_time - now))
         return max_timeout
 
