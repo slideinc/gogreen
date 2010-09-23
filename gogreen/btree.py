@@ -379,3 +379,64 @@ class BTree(object):
         throwaway = object.__new__(type(self))
         throwaway._root = left # just using you for your __iter__
         return iter(throwaway)
+
+    @classmethod
+    def bulkload(cls, values, order):
+        tree = object.__new__(cls)
+        tree.order = order
+
+        minimum = order // 2
+        valuegroups, separators = [[]], []
+
+        for value in values:
+            if len(valuegroups[-1]) < order:
+                valuegroups[-1].append(value)
+            else:
+                separators.append(value)
+                valuegroups.append([])
+
+        if len(valuegroups[-1]) < minimum and separators:
+            sep_value = separators.pop()
+            last_two_values = valuegroups[-2] + [sep_value] + valuegroups[-1]
+            valuegroups[-2] = last_two_values[:minimum]
+            valuegroups[-1] = last_two_values[minimum + 1:]
+            separators.append(last_two_values[minimum])
+
+        last_generation = []
+        for values in valuegroups:
+            last_generation.append(cls.LEAF_NODE(tree, values))
+
+        if not separators:
+            tree._root = last_generation[0]
+            return tree
+
+        while len(separators) > order + 1:
+            pairs, separators = separators, []
+            last_values, values = values, [[]]
+
+            for value in pairs:
+                if len(values[-1]) < order:
+                    values[-1].append(value)
+                else:
+                    separators.append(value)
+                    values.append([])
+
+            if len(values[-1]) < minimum and separators:
+                sep_value = separators.pop()
+                last_two_values = values[-2] + [sep_value] + values[-1]
+                values[-2] = last_two_values[:minimum]
+                values[-1] = last_two_values[minimum + 1:]
+                separators.append(last_two_values[minimum])
+
+            offset = 0
+            for i, value_group in enumerate(values):
+                children = last_generation[offset:offset + len(value_group) + 1]
+                values[i] = cls.BRANCH_NODE(tree, value_group, children)
+                offset += len(value_group) + 1
+
+            last_generation = values
+
+        root = cls.BRANCH_NODE(tree, separators, last_generation)
+
+        tree._root = root
+        return tree
