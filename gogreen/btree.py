@@ -128,7 +128,7 @@ class BTreeNode(object):
             self.keys.extend(right.keys)
             self.values.extend(right.values)
             if self.BRANCH:
-                self.children.extend(right.values)
+                self.children.extend(right.children)
             parent.children.pop(parent_index + 1)
 
         if len(parent.keys) < minimum:
