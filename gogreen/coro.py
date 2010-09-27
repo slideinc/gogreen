@@ -1641,8 +1641,10 @@ class event_list(object):
         return None
 
     def next_event (self, max_timeout=30.0):
+        if self.paused:
+            return 0
         now = time.time()
-        if self:
+        if self.events:
             next_time = (self.events.first or (now,))[0]
             return max(0, min(max_timeout, next_time - now))
         return max_timeout
