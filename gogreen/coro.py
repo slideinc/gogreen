@@ -710,8 +710,18 @@ def preemptive_locked():
         return disabled
     return function
 
+
 _current_threads = {}
 _current_threads_by_id = {}
+
+def _register_thread(thread):
+    _current_threads[thread._co] = thread
+    _current_threads_by_id[thread.thread_id()] = thread
+
+def _unregister_thread(thread):
+    _current_threads.pop(thread._co)
+    _current_threads_by_id.pop(thread.thread_id())
+
 
 class Thread(object):
     _thread_count = 0
@@ -929,13 +939,11 @@ class Thread(object):
         return result
 
     def _run (self):
-        global _current_threads
         try:
             self._alive   = 1
             self._status  = 'alive'
             self._joinees = []
-            _current_threads[self._co] = self
-            _current_threads_by_id[self.thread_id()] = self
+            _register_thread(self)
 
             parent = self.parent()
             if parent is not None:
@@ -969,9 +977,7 @@ class Thread(object):
 
             self._joinees = None
 
-        if _current_threads.has_key(self._co):
-            del(_current_threads[self._co])
-        _current_threads_by_id.pop(self.thread_id())
+        _unregister_thread(self)
 
         self._alive  = 0
         self._status = 'dead'
@@ -1605,49 +1611,48 @@ _MAX = type('max', (), {'__cmp__': lambda self, x: 1})()
 
 
 class event_list(object):
-    def __init__ (self):
-        self.events = btree.BTree(TIMED_BRANCHING_ORDER)
-        self.paused = set()
+    def __init__(self):
+        self.timed = btree.BTree(BTREE_BRANCH_ORDER)
+        self.zero_timeout = set()
 
-    def __nonzero__ (self):
-        return bool(self.paused or self.events)
+    def __nonzero__(self):
+        return bool(self.zero_timeout or self.timed)
 
-    def insert_event (self, co, when, args):
-        triple = (when, co, args)
-        self.events.insert(triple)
+    def insert_event(self, co, timeout, args):
+        now = time.time()
+        if isinstance(timeout, (int, long)):
+            now = int(now)
+        triple = (timeout + now, co, args)
+        if timeout:
+            self.timed.insert(triple)
+        else:
+            self.zero_timeout.add((co, args))
         return triple
 
-    def insert_paused(self, co, args):
-        self.paused.add((co, args))
-        return (None, co, args)
+    def remove_event(self, triple):
+        if triple[0]:
+            try:
+                self.timed.remove(triple)
+            except ValueError:
+                pass
+        else:
+            self.zero_timeout.discard((triple[1], triple[2]))
 
-    def remove_event (self, triple):
-        try:
-            if triple[0] is None:
-                self.paused.discard((triple[1], triple[2]))
-            else:
-                self.events.remove(triple)
-        except ValueError:
-            pass
-
-    def run_scheduled (self):
-        paused = self.paused
-        self.paused = set()
-        timed_in = self.events.pull_prefix((time.time(), _MAX))
-        for time_in, thread, args in timed_in:
-            schedule(thread, args)
-        for thread, args in paused:
-            schedule(thread, args)
-        return None
-
-    def next_event (self, max_timeout=30.0):
-        if self.paused:
-            return 0
+    def run_scheduled(self):
         now = time.time()
-        if self.events:
-            next_time = (self.events.first or (now,))[0]
-            return max(0, min(max_timeout, next_time - now))
-        return max_timeout
+        for triple in self.timed.pull_prefix((now, _MAX)):
+            schedule(triple[1], triple[2])
+
+        for thread, args in self.zero_timeout:
+            schedule(thread, args)
+        self.zero_timeout.clear()
+
+    def next_event(self, max_timeout=30.0):
+        if self.zero_timeout:
+            return 0
+        if not self.timed:
+            return max_timeout
+        return self.timed.first[0] - time.time()
 
 class _event_poll(object):
     def __init__(self):
