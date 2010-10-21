@@ -1612,7 +1612,7 @@ _MAX = type('max', (), {'__cmp__': lambda self, x: 1})()
 
 class event_list(object):
     def __init__(self):
-        self.timed = btree.BTree(BTREE_BRANCH_ORDER)
+        self.timed = btree.BTree(TIMED_BRANCHING_ORDER)
         self.zero_timeout = set()
 
     def __nonzero__(self):
