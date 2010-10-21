@@ -31,156 +31,72 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import coro
-import socket
-import string
-import StringIO
-import sys
-import traceback
 
-# Originally, this object implemented the file-output api, and set
-# sys.stdout and sys.stderr to 'self'.  However, if any other
-# coroutine ran, it would see the captured definition of sys.stdout,
-# and would send its output here, instead of the expected place.  Now
-# the code captures all output using StringIO.  A little less
-# flexible, a little less efficient, but much less surprising!
-# [Note: this is exactly the same problem addressed by Scheme
-#  dynamic-wind facility]
+import code
+import socket
+import sys
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
+from gogreen import coro
+
+
+PS1 = getattr(sys, "ps1", ">>> ")
+PS2 = getattr(sys, "ps2", "... ")
+
 
 class BackDoorClient(coro.Thread):
     def init(self):
-        self.address = None
-        self.socket  = None
-        self.buffer  = ''
-        self.lines   = []
-        self.exit    = False
-        self.multilines = []
-        self.line_separator = '\r\n'
-        #
-        # allow the user to change the prompts:
-        #
-        if not sys.__dict__.has_key('ps1'):
-            sys.ps1 = '>>> '
-        if not sys.__dict__.has_key('ps2'):
-            sys.ps2 = '... '
+        self.exit = False
 
-    def send (self, data):
-        olb = lb = len(data)
-        while lb:
-            ns = self.socket.send (data)
-            lb = lb - ns
-        return olb
-
-    def prompt (self):
-        if self.multilines:
-            self.send (sys.ps2)
-        else:
-            self.send (sys.ps1)
-
-    def read_line (self):
-        if self.lines:
-            l = self.lines[0]
-            self.lines = self.lines[1:]
-            return l
-        else:
-            while not self.lines:
-                block = self.socket.recv (8192)
-                if not block:
-                    return None
-                elif block == '\004':
-                    self.socket.close()
-                    return None
-                else:
-                    self.buffer = self.buffer + block
-                    lines = string.split (self.buffer, self.line_separator)
-                    for l in lines[:-1]:
-                        self.lines.append (l)
-                    self.buffer = lines[-1]
-            return self.read_line()
-
-    def run(self, conn, addr):
-        self.socket  = conn
-        self.address = addr
-
-        # a call to socket.setdefaulttimeout will mean that this backdoor
-        # has a timeout associated with it. to counteract this set the
-        # socket timeout to None here.
-        self.socket.settimeout(None)
-
-        self.info('Incoming backdoor connection from %r' % (self.address,))
-        #
-        # print header for user
-        #
-        self.send ('Python ' + sys.version + self.line_separator)
-        self.send (sys.copyright + self.line_separator)
-        #
-        # this does the equivalent of 'from __main__ import *'
-        #
+    def run(self, clientsock, client_address):
         env = sys.modules['__main__'].__dict__.copy()
-        #
-        # wait for imput and process
-        #
-        while not self.exit:
-            self.prompt()
-            try:
-                line = self.read_line()
-            except coro.CoroutineSocketWake:
-                continue
+        console = code.InteractiveConsole(env)
+        clientfile = clientsock.makefile('r')
+        multiline_statement = []
+        stdout, stderr = StringIO(), StringIO()
 
-            if line is None:
+        clientsock.sendall(
+                'Python ' + sys.version + '\r\n' + sys.copyright + '\r\n' + PS1)
+
+        for input_line in clientsock.makefile('r'):
+            if self.exit:
                 break
-            elif self.multilines:
-                self.multilines.append(line)
-                if line == '':
-                    code = string.join(self.multilines, '\n')
-                    self.parse(code, env)
-                    # we do this after the parsing so parse() knows not to do
-                    # a second round of multiline input if it really is an
-                    # unexpected EOF
-                    self.multilines = []
-            else:
-                self.parse(line, env)
 
-        self.info('Backdoor connection closing')
+            input_line = input_line.rstrip()
+            source = '\n'.join(multiline_statement + [input_line])
+            response = []
 
-        self.socket.close()
-        self.socket = None
-        return None
-
-    def parse(self, line, env):
-        save = sys.stdout, sys.stderr
-        output = StringIO.StringIO()
-        try:
+            stdout.seek(0)
+            stderr.seek(0)
+            stdout.truncate()
+            stderr.truncate()
+            real_stdout = sys.stdout
+            real_stderr = sys.stderr
+            sys.stdout = stdout
+            sys.stderr = stderr
             try:
-                sys.stdout = sys.stderr = output
-                co = compile (line, repr(self), 'eval')
-                result = eval (co, env)
-                if result is not None:
-                    print repr(result)
-                    env['_'] = result
-            except SyntaxError:
-                try:
-                    co = compile (line, repr(self), 'exec')
-                    exec co in env
-                except SyntaxError, msg:
-                    # this is a hack, but it is a righteous hack:
-                    if not self.multilines and str(msg) == 'unexpected EOF while parsing':
-                        self.multilines.append(line)
-                    else:
-                        traceback.print_exc()
-                except:
-                    traceback.print_exc()
-            except:
-                traceback.print_exc()
-        finally:
-            sys.stdout, sys.stderr = save
-            self.send (output.getvalue())
-            del output
+                result = console.runsource(source)
+            finally:
+                sys.stdout = real_stdout
+                sys.stderr = real_stderr
 
-    def shutdown(self):
-        if not self.exit:
-            self.exit = True
-            self.socket.wake()
+            response.append(stdout.getvalue())
+            response.append(stderr.getvalue())
+
+            if response[-1] or not result:
+                multiline_statement = []
+                response.append(PS1)
+            else:
+                multiline_statement.append(input_line)
+                response.append(PS2)
+
+            clientsock.sendall(''.join(response))
+
+        self.info("Backdoor connection closing")
+        clientsock.close()
 
 
 class BackDoorServer(coro.Thread):
