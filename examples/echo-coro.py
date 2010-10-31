@@ -36,6 +36,7 @@ import os
 import signal
 
 from gogreen import coro
+from gogreen import start
 
 ECHO_PORT = 5580
 
@@ -115,7 +116,7 @@ class EchoServer(coro.Thread):
         self.exit = True
         self.sock.wake()
 
-def main(argv, stdout, environ):
+def run(here, log, loglevel, logdir, **kwargs):
     eserv = EchoServer(addr = ('', ECHO_PORT))
     eserv.start()
 
@@ -132,4 +133,12 @@ def main(argv, stdout, environ):
     return None
 
 if __name__ == '__main__':
-  main(sys.argv, sys.stdout, os.environ)
+	conf = {
+		0 : {'lockport' : 5581, 'echo_port' : 5580}, 
+	}
+    value = start.main(
+		conf,
+		run,
+		name = 'echoserver',
+		)
+	sys.exit(value) 

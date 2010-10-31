@@ -34,7 +34,7 @@
 various simple caches
 '''
 
-from util import dqueue
+from gogreen import dqueue
 
 DEFAULT_CACHE_SIZE = 1024
 
