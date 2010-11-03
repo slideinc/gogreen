@@ -142,6 +142,7 @@ def main(
     #
     max_fd   = defaults.get('max_fd', SERVER_MAX_FD)
     loglevel = 'INFO'
+    logdir   = None
     logfile  = None
     pidfile  = None
     dofork   = False
@@ -196,16 +197,17 @@ def main(
     if here is None:
         return 128
 
-    logdir = os.path.join(base_dir, here.get('logdir', 'logs'))
-    try:
-        value = os.stat(logdir)
-    except OSError, e:
-        if errno.ENOENT == e[0]:
-            os.makedirs(logdir)
-            os.chmod(logdir, stat.S_IRWXU|stat.S_IRWXG|stat.S_IRWXO)
-        else:
-            print 'logdir lookup error: %r' % (e,)
-            return 127
+    if 'logdir' in here:
+        logdir = os.path.join(base_dir, here['logdir'])
+        try:
+            value = os.stat(logdir)
+        except OSError, e:
+            if errno.ENOENT == e[0]:
+                os.makedirs(logdir)
+                os.chmod(logdir, stat.S_IRWXU|stat.S_IRWXG|stat.S_IRWXO)
+            else:
+                print 'logdir lookup error: %r' % (e,)
+                return 127
 
     if prefork is not None:
         parameters['prefork'] = prefork()
@@ -234,7 +236,7 @@ def main(
     except (AttributeError, ValueError, prctl.PrctlError), e:
         print 'PRCTL DUMPABLE error:', e
 
-    if pidfile:
+    if logdir and pidfile:
         pidfile = logdir + '/' + pidfile
         try:
             fd = open(pidfile, 'w')
@@ -245,7 +247,7 @@ def main(
             fd.write('%d' % os.getpid())
             fd.close()
 
-    if logfile:
+    if logdir and logfile:
         logfile = logdir + '/' + logfile
         hndlr = logging.handlers.RotatingFileHandler(
             logfile, 'a', LOG_SIZE_MAX, LOG_COUNT_MAX)

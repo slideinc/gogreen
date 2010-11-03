@@ -17,8 +17,6 @@ from gogreen import backdoor
 #
 emulate.init()
 
-
-
 class Heartbeat(coro.Thread):
 
     def __init__(self, period, *args, **kwargs):
