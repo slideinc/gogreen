@@ -1044,14 +1044,7 @@ class Thread(object):
         # add self to timeout event list
         #
         if timeout is not None:
-            if timeout:
-                if type(timeout) == type(0.0):
-                    now = time.time()
-                else:
-                    now = int(time.time())
-                triple = the_event_list.insert_event(self, now + timeout, arg)
-            else:
-                triple = the_event_list.insert_paused(self, arg)
+            triple = the_event_list.insert_event(self, timeout, arg)
         #
         # in debug mode record stack
         #
