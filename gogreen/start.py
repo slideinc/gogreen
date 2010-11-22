@@ -189,7 +189,7 @@ def main(
             else:
                 try:
                     parameters[field] = int(val)
-                except TypeError:
+                except (TypeError, ValueError):
                     parameters[field] = val
 
     # init

@@ -464,6 +464,15 @@ class connection(object):
 
         return None
 
+    def ping(self):
+        pass
+
+    def commit(self):
+        self.cmd_query('COMMIT')
+
+    def rollback(self):
+        self.cmd_query('ROLLBACK')
+
     def _check(self):
         #
         # Perform a non-blocking poll on the socket to determine if there
